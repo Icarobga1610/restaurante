@@ -1,4 +1,5 @@
-from datetime import datetime
+from calendar import monthrange
+from datetime import date, datetime
 from app.utils import utcnow
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
@@ -12,6 +13,7 @@ from app.models.order import Order
 from app.models.monthly_account import MonthlyAccount, MonthlyAccountItem
 from app.models.signature import Signature
 from app.models.payment import Payment
+from app.models.payment_method import PaymentMethod
 from app.schemas.schemas import (
     MonthlyAccountCreate, MonthlyAccountClose, MonthlyAccountPay,
     MonthlyAccountOut, MonthlyAccountItemOut,
@@ -22,6 +24,13 @@ from app.services.audit_service import AuditService
 from app.services.biometric_service import BiometricService
 
 router = APIRouter(prefix="/api/monthly-accounts", tags=["Monthly Accounts"])
+
+
+def _calculate_due_date(client: Client, month: int, year: int) -> date | None:
+    if not getattr(client, "payment_day", None):
+        return None
+    day = max(1, min(int(client.payment_day), monthrange(year, month)[1]))
+    return date(year, month, day)
 
 
 @router.get("", response_model=list[MonthlyAccountOut])
@@ -65,6 +74,7 @@ def list_monthly_accounts(
             total=a.total,
             status=a.status,
             client_is_account_client=getattr(a.client, "is_account_client", False),
+            due_date=a.due_date,
             closed_at=a.closed_at,
             closed_by=a.closed_by,
             closed_by_name=a.closer.full_name if a.closer else None,
@@ -104,6 +114,7 @@ def get_monthly_account(account_id: int, db: Session = Depends(get_db), _: User 
         total=a.total,
         status=a.status,
         client_is_account_client=getattr(a.client, "is_account_client", False),
+        due_date=a.due_date,
         closed_at=a.closed_at,
         closed_by=a.closed_by,
         closed_by_name=a.closer.full_name if a.closer else None,
@@ -142,6 +153,7 @@ def create_monthly_account(
         month=data.month,
         year=data.year,
         total=0.0,
+        due_date=_calculate_due_date(client, data.month, data.year),
         status="open",
     )
     db.add(account)
@@ -263,6 +275,12 @@ def pay_monthly_account(
         raise HTTPException(status_code=404, detail="Monthly account not found")
     if account.status not in ("confirmed_by_biometrics", "closed"):
         raise HTTPException(status_code=400, detail=f"Account must be closed/confirmed to pay, current status: {account.status}")
+    method = db.query(PaymentMethod).filter(
+        PaymentMethod.code == data.payment_method,
+        PaymentMethod.is_active == True,
+    ).first()
+    if not method:
+        raise HTTPException(status_code=400, detail="Forma de pagamento inválida ou inativa")
 
     payment = Payment(
         monthly_account_id=account.id,
@@ -281,12 +299,24 @@ def pay_monthly_account(
 
     signature_data = data.signature_data
     if signature_data:
+        bio = (
+            db.query(Signature)
+            .filter(
+                Signature.monthly_account_id == account.id,
+                Signature.client_id == account.client_id,
+            )
+            .first()
+        )
+        verification_hash = getattr(getattr(bio, "verification_hash", None), "verification_hash", None)
+        if verification_hash is None and signature_data:
+            verification_hash = f"{signature_data}:{account.id}"
         signature = Signature(
             monthly_account_id=account.id,
             client_id=account.client_id,
             user_id=current_user.id,
             signature_data=signature_data,
             signed_value=account.total,
+            verification_hash=verification_hash,
             ip_address=request.client.host if request.client else None,
             device_info="web_payment",
         )

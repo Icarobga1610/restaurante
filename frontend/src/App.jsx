@@ -11,13 +11,17 @@ import Clients from './pages/Clients';
 import ClientForm from './pages/ClientForm';
 import Products from './pages/Products';
 import ProductForm from './pages/ProductForm';
+import Ingredients from './pages/Ingredients';
+import RecipeSheets from './pages/RecipeSheets';
 import Orders from './pages/Orders';
 import OrderForm from './pages/OrderForm';
 import MonthlyAccounts from './pages/MonthlyAccounts';
 import BiometricVerify from './pages/BiometricVerify';
+import Delivery from './pages/Delivery';
+import CashBook from './pages/CashBook';
+import PaymentMethods from './pages/PaymentMethods';
 import Reports from './pages/Reports';
 import AuditLogs from './pages/AuditLogs';
-import SignaturePad from './pages/SignaturePad';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 
 function ProtectedRoute({ children }) {
@@ -67,6 +71,22 @@ function AppRoutes() {
         />
         <Route path="products" element={<Products />} />
         <Route
+          path="ingredients"
+          element={
+            <RoleProtectedRoute allowed={['admin', 'financial']}>
+              <Ingredients />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="recipes"
+          element={
+            <RoleProtectedRoute allowed={['admin', 'financial']}>
+              <RecipeSheets />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
           path="products/new"
           element={
             <RoleProtectedRoute allowed={['admin', 'financial']}>
@@ -93,7 +113,24 @@ function AppRoutes() {
         />
         <Route path="monthly-accounts" element={<MonthlyAccounts />} />
         <Route path="biometric" element={<BiometricVerify />} />
-        <Route path="signature" element={<SignaturePad />} />
+        <Route path="delivery" element={<Delivery />} />
+        <Route
+          path="cash-book"
+          element={
+            <RoleProtectedRoute allowed={['admin', 'financial']}>
+              <CashBook />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route
+          path="payment-methods"
+          element={
+            <RoleProtectedRoute allowed={['admin', 'financial']}>
+              <PaymentMethods />
+            </RoleProtectedRoute>
+          }
+        />
+        <Route path="signature" element={<Navigate to="/biometric" replace />} />
         <Route path="reports" element={<Reports />} />
         <Route
           path="audit"

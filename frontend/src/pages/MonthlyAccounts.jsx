@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { monthlyAccounts as maApi, clients as clientsApi } from '../services/api';
+import { monthlyAccounts as maApi, clients as clientsApi, paymentMethods as paymentMethodsApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +27,9 @@ export default function MonthlyAccounts() {
   const [createAccount, setCreateAccount] = useState({ client_id:'', month: new Date().getMonth()+1, year: new Date().getFullYear() });
   const [showCreateClient, setShowCreateClient] = useState(false);
   const [createClient, setCreateClient] = useState({ name:'', document:'', phone:'', company_sector:'', monthly_limit:'', notes:'' });
+  const [paymentMethods, setPaymentMethods] = useState([]);
+  const [payingAccount, setPayingAccount] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('');
   const { hasRole } = useAuth();
   const navigate = useNavigate();
 
@@ -49,6 +52,14 @@ export default function MonthlyAccounts() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  useEffect(() => {
+    paymentMethodsApi.list().then((res) => {
+      setPaymentMethods(res.data);
+      const main = res.data.find((method) => method.is_default) || res.data[0];
+      if (main) setPaymentMethod(main.code);
+    }).catch(() => {});
+  }, []);
 
   const handleCreateAccount = async (e) => {
     e.preventDefault();
@@ -108,11 +119,19 @@ export default function MonthlyAccounts() {
       navigate('/biometric', { state: { account, autoPay: true } });
       return;
     }
-    if (!confirm(`Registrar pagamento da conta de ${account.client_name} no valor de R$ ${account.total.toFixed(2)}?`)) return;
+    setPayingAccount(account);
+  };
+
+  const confirmPayment = async () => {
+    if (!payingAccount) return;
+    if (!paymentMethod) {
+      toast.warning('Selecione a forma de pagamento');
+      return;
+    }
     try {
-      const method = 'pix';
-      await maApi.pay(account.id, { payment_method: method });
+      await maApi.pay(payingAccount.id, { payment_method: paymentMethod });
       toast.success('Pagamento registrado!');
+      setPayingAccount(null);
       loadData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Erro ao registrar pagamento');
@@ -164,6 +183,12 @@ export default function MonthlyAccounts() {
                   <Calendar size={14} />
                   {months[acc.month - 1]} {acc.year}
                 </span>
+                {acc.due_date && (
+                  <span className="flex items-center gap-1 text-sm text-gray-500">
+                    <AlertTriangle size={14} />
+                    Vence {new Date(`${acc.due_date}T00:00:00`).toLocaleDateString('pt-BR')}
+                  </span>
+                )}
                 <span className={STATUS_MAP[acc.status]?.class || 'badge-gray'}>
                   {STATUS_MAP[acc.status]?.label || acc.status}
                 </span>
@@ -326,6 +351,30 @@ export default function MonthlyAccounts() {
                 <button type="button" onClick={() => setShowCreateClient(false)} className="btn-secondary flex-1">Cancelar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {payingAccount && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPayingAccount(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-800 mb-1">Registrar Pagamento</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              {payingAccount.client_name} - R$ {payingAccount.total.toFixed(2)}
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Forma de pagamento</label>
+            <select className="input-field" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+              <option value="">Selecione...</option>
+              {paymentMethods.map((method) => (
+                <option key={method.id} value={method.code}>
+                  {method.name}{method.is_default ? ' (principal)' : ''}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-3 mt-6">
+              <button type="button" className="btn-primary flex-1" onClick={confirmPayment}>Confirmar</button>
+              <button type="button" className="btn-secondary flex-1" onClick={() => setPayingAccount(null)}>Cancelar</button>
+            </div>
           </div>
         </div>
       )}

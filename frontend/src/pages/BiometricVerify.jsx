@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { monthlyAccounts as maApi, biometrics as bioApi } from '../services/api';
+import { monthlyAccounts as maApi, biometrics as bioApi, paymentMethods as paymentMethodsApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-toastify';
 import {
@@ -99,7 +99,9 @@ export default function BiometricVerify() {
       toast.success('✅ Biometria confirmada!');
       if (autoPay && selectedAccount?.id) {
         try {
-          await maApi.pay(selectedAccount.id, { payment_method: 'pix' });
+          const methods = await paymentMethodsApi.list();
+          const main = methods.data.find((method) => method.is_default) || methods.data[0];
+          await maApi.pay(selectedAccount.id, { payment_method: main?.code || 'pix' });
           toast.success('Pagamento registrado automaticamente após biometria.');
           setTimeout(() => navigate('/monthly-accounts'), 600);
         } catch (payErr) {

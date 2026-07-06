@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { orders as ordersApi, clients as clientsApi, products as productsApi, monthlyAccounts as maApi, biometrics as bioApi } from '../services/api';
+import { orders as ordersApi, clients as clientsApi, products as productsApi, biometrics } from '../services/api';
 import { toast } from 'react-toastify';
-import { Save, ArrowLeft, Plus, Trash2, Search, User, Fingerprint, CheckCircle, X } from 'lucide-react';
+import { Save, ArrowLeft, Plus, Trash2, User, Fingerprint } from 'lucide-react';
+import { browserSupportsWebAuthn, getWebAuthnCredential } from '../app/webauthn';
 
 export default function OrderForm() {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ export default function OrderForm() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([]);
+  const [confirmWithBiometric, setConfirmWithBiometric] = useState(true);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -49,26 +51,44 @@ export default function OrderForm() {
 
   const filteredClients = clients.filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase()));
 
+  const verifyDigitalForAccountLaunch = async () => {
+    if (!browserSupportsWebAuthn()) {
+      throw new Error('Este navegador/dispositivo não suporta leitura de digital.');
+    }
+
+    toast.info('Confirme a digital para lançar o pedido na conta.');
+    const options = await biometrics.webauthn.verifyOptions({ client_id: selectedClient.id });
+    const credential = await getWebAuthnCredential(options.data.publicKey);
+    const verification = await biometrics.webauthn.verifyComplete({
+      client_id: selectedClient.id,
+      ...credential,
+    });
+    return verification.data.verification_token;
+  };
+
   const submitOrder = async () => {
     if (!selectedClient) { toast.warning('Selecione um cliente'); return; }
     if (items.length === 0) { toast.warning('Adicione pelo menos um item'); return; }
 
-    const payload = {
-      client_id: selectedClient.id,
-      notes,
-      items: items.map((item) => ({
-        product_id: parseInt(item.product_id),
-        product_name: item.product_name,
-        quantity: parseFloat(item.quantity),
-        unit_price: parseFloat(item.unit_price),
-        total: parseFloat(item.total),
-      })),
-    };
-
     setLoading(true);
     try {
+      const biometricToken = confirmWithBiometric ? await verifyDigitalForAccountLaunch() : null;
+      const payload = {
+        client_id: selectedClient.id,
+        notes,
+        payment_mode: 'monthly_account',
+        confirm_with_biometric: confirmWithBiometric,
+        biometric_verification_token: biometricToken,
+        items: items.map((item) => ({
+          product_id: parseInt(item.product_id),
+          product_name: item.product_name,
+          quantity: parseFloat(item.quantity),
+          unit_price: parseFloat(item.unit_price),
+          total: parseFloat(item.total),
+        })),
+      };
       await ordersApi.create(payload);
-      toast.success('Pedido criado com sucesso!');
+      toast.success(confirmWithBiometric ? 'Pedido lançado na conta com digital!' : 'Pedido lançado na conta mensal!');
       navigate('/orders');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Erro ao criar pedido');
@@ -86,7 +106,7 @@ export default function OrderForm() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Novo Pedido</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {selectedClient?.is_account_client ? 'Cliente de conta: pedido vinculado à conta mensal. Assinatura/biometria no fechamento/pagamento.' : 'Cliente avulso: fluxo normal de caixa.'}
+            {selectedClient?.is_account_client ? 'Cliente de conta: use a digital para lançar consumo na conta mensal.' : 'Cliente avulso: fluxo normal de caixa.'}
           </p>
         </div>
       </div>
@@ -111,7 +131,10 @@ export default function OrderForm() {
             <div className="flex items-center justify-between p-3 bg-primary-50 rounded-lg border border-primary-100">
               <div>
                 <p className="font-medium text-gray-800">{selectedClient.name}</p>
-                <p className="text-sm text-gray-500">{selectedClient.phone} {selectedClient.is_account_client ? '- Cliente de conta' : '- Avulso'}</p>
+                <p className="text-sm text-gray-500">
+                  {selectedClient.phone} {selectedClient.is_account_client ? '- Cliente de conta' : '- Avulso'}
+                  {selectedClient.payment_day ? ` - paga dia ${selectedClient.payment_day}` : ''}
+                </p>
               </div>
               <button type="button" onClick={() => setSelectedClient(null)} className="text-sm text-red-600 hover:text-red-700">Trocar</button>
             </div>
@@ -156,6 +179,35 @@ export default function OrderForm() {
         <div className="card">
           <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
           <textarea className="input-field" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observações do pedido..." />
+        </div>
+
+        <div className="card">
+          <h2 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <Fingerprint size={18} />
+            Lançamento na conta
+          </h2>
+          <label className={`block rounded-lg border p-4 cursor-pointer transition-colors ${
+            confirmWithBiometric ? 'border-primary-300 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+          }`}>
+            <div className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={confirmWithBiometric}
+                onChange={(e) => setConfirmWithBiometric(e.target.checked)}
+              />
+              <div>
+                <div className="flex items-center gap-2 font-medium text-gray-800">
+                  <Fingerprint size={18} className={confirmWithBiometric ? 'text-primary-600' : 'text-gray-300'} />
+                  Confirmar lançamento com digital
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  O pedido será colocado na conta mensal após validar a digital do cliente
+                  {selectedClient?.payment_day ? `, com vencimento no dia ${selectedClient.payment_day}.` : '.'}
+                </p>
+              </div>
+            </div>
+          </label>
         </div>
 
         <div className="flex items-center gap-3">

@@ -64,7 +64,7 @@ def test_create_client_without_auth(client):
         "/api/clients",
         json={"name": "No Auth", "phone": "11955556666"},
     )
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 def test_list_clients(client, auth_header):

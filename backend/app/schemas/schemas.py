@@ -27,18 +27,19 @@ class RoleOut(BaseModel):
 class ClientCreate(BaseModel):
     name: str; document: Optional[str] = None; phone: str
     company_sector: Optional[str] = None; monthly_limit: Optional[float] = None
-    is_account_client: bool = False; notes: Optional[str] = None
+    is_account_client: bool = False; payment_day: Optional[int] = None; notes: Optional[str] = None
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None; document: Optional[str] = None; phone: Optional[str] = None
     company_sector: Optional[str] = None; status: Optional[str] = None
     monthly_limit: Optional[float] = None; is_account_client: Optional[bool] = None
+    payment_day: Optional[int] = None
     notes: Optional[str] = None
 
 class ClientOut(BaseModel):
     id: int; name: str; document: Optional[str] = None; phone: str
     company_sector: Optional[str] = None; status: str; monthly_limit: Optional[float] = None
-    is_account_client: bool = False; notes: Optional[str] = None
+    is_account_client: bool = False; payment_day: Optional[int] = None; notes: Optional[str] = None
     created_at: datetime; updated_at: datetime
     class Config: from_attributes = True
 
@@ -74,6 +75,9 @@ class OrderItemCreate(BaseModel):
 class OrderCreate(BaseModel):
     client_id: int; tab_id: Optional[int] = None; table_id: Optional[int] = None
     notes: Optional[str] = None; items: List[OrderItemCreate]
+    payment_mode: str = "monthly_account"
+    confirm_with_biometric: bool = False
+    biometric_verification_token: Optional[str] = None
     signature_data: Optional[str] = None
 
 class OrderUpdate(BaseModel):
@@ -107,6 +111,7 @@ class MonthlyAccountItemOut(BaseModel):
 class MonthlyAccountOut(BaseModel):
     id: int; client_id: int; client_name: Optional[str] = None; month: int; year: int
     total: float; status: str; client_is_account_client: Optional[bool] = False
+    due_date: Optional[date] = None
     closed_at: Optional[datetime] = None
     closed_by: Optional[int] = None; closed_by_name: Optional[str] = None
     biometric_verification_id: Optional[int] = None
@@ -119,6 +124,11 @@ class MonthlyAccountOut(BaseModel):
 # === Biometrics ===
 class BiometricEnrollRequest(BaseModel): client_id: int
 class BiometricVerifyRequest(BaseModel): client_id: int; monthly_account_id: int
+class WebAuthnOptionsRequest(BaseModel): client_id: int
+class WebAuthnEnrollComplete(BaseModel):
+    client_id: int; credential_id: str; raw_id: str; type: str; response: dict
+class WebAuthnVerifyComplete(BaseModel):
+    client_id: int; credential_id: str; type: str; response: dict
 
 class BiometricProfileOut(BaseModel):
     id: int; client_id: int; client_name: Optional[str] = None; algorithm: str
@@ -156,6 +166,70 @@ class SignatureOut(BaseModel):
 class PaymentOut(BaseModel):
     id: int; monthly_account_id: int; client_id: int; user_id: int; amount: float
     payment_method: str; paid_at: datetime; notes: Optional[str] = None
+    class Config: from_attributes = True
+
+class PaymentMethodCreate(BaseModel):
+    code: str; name: str; is_default: bool = False; is_active: bool = True
+
+class PaymentMethodUpdate(BaseModel):
+    code: Optional[str] = None; name: Optional[str] = None
+    is_default: Optional[bool] = None; is_active: Optional[bool] = None
+
+class PaymentMethodOut(BaseModel):
+    id: int; code: str; name: str; is_default: bool; is_active: bool
+    created_at: datetime; updated_at: datetime
+    class Config: from_attributes = True
+
+# === Delivery Platform ===
+class DeliveryPlatformCreate(BaseModel):
+    name: str; api_base_url: Optional[str] = None; webhook_secret: Optional[str] = None
+    settings: Optional[dict] = None; active: bool = True
+
+class DeliveryPlatformOut(BaseModel):
+    id: int; name: str; slug: str; active: bool; api_base_url: Optional[str] = None
+    webhook_secret: Optional[str] = None; settings: Optional[dict] = None
+    created_at: datetime; updated_at: datetime
+    class Config: from_attributes = True
+
+class DeliveryPlatformItemCreate(BaseModel):
+    external_item_id: Optional[str] = None; product_id: Optional[int] = None
+    product_name: str; quantity: float = 1.0; unit_price: float; total: float
+    notes: Optional[str] = None
+
+class DeliveryPlatformItemOut(BaseModel):
+    id: int; delivery_order_id: int; external_item_id: Optional[str] = None
+    product_id: Optional[int] = None; product_name: str; quantity: float; unit_price: float
+    total: float; notes: Optional[str] = None; created_at: datetime; updated_at: datetime
+    class Config: from_attributes = True
+
+class DeliveryOrderCreate(BaseModel):
+    platform_slug: Optional[str] = None
+    external_order_id: Optional[str] = None
+    client_name: Optional[str] = None; client_phone: Optional[str] = None
+    address: Optional[str] = None; payment_method: Optional[str] = None
+    subtotal: float = 0.0; delivery_fee: float = 0.0; discount: float = 0.0
+    total: float = 0.0; items: List[DeliveryPlatformItemCreate]
+    notes: Optional[str] = None
+
+class DeliveryOrderIncoming(BaseModel):
+    platform_slug: Optional[str] = None
+    external_order_id: Optional[str] = None
+    client_name: Optional[str] = None; client_phone: Optional[str] = None
+    address: Optional[str] = None; payment_method: Optional[str] = None
+    subtotal: float = 0.0; delivery_fee: float = 0.0; discount: float = 0.0
+    total: float = 0.0; items: List[DeliveryPlatformItemCreate]
+    notes: Optional[str] = None
+    raw_payload: Optional[str] = None
+
+class DeliveryOrderOut(BaseModel):
+    id: int; platform_id: int; external_order_id: Optional[str] = None
+    client_name: Optional[str] = None; client_phone: Optional[str] = None
+    address: Optional[str] = None; payment_method: Optional[str] = None
+    subtotal: float; delivery_fee: float; discount: float; total: float
+    status: str; raw_payload: Optional[str] = None
+    received_at: datetime; acknowledged_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None; created_at: datetime; updated_at: datetime
+    items: List[DeliveryPlatformItemOut] = []
     class Config: from_attributes = True
 
 # === Audit ===

@@ -126,7 +126,7 @@ export default function Dashboard() {
       alert: data?.overdue_accounts > 0,
     },
     {
-      label: 'Sem Assinatura',
+      label: 'Sem Biometria',
       value: data?.unsigned_accounts || 0,
       icon: AlertTriangle,
       color: 'bg-orange-50 text-orange-600',

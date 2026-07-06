@@ -44,12 +44,12 @@ def get_stock_item(item_id: int, db: Session = Depends(get_db), _: User = Depend
 
 @router.post("/items", response_model=StockItemOut, status_code=201)
 def create_stock_item(data: StockItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role.name not in ("admin",): raise HTTPException(403, "Only admins can manage stock")
+    if current_user.role.name not in ("admin", "financial"): raise HTTPException(403, "Only admin/financial can manage stock")
     item = StockItem(**data.model_dump()); db.add(item); db.commit(); db.refresh(item); return item
 
 @router.put("/items/{item_id}", response_model=StockItemOut)
 def update_stock_item(item_id: int, data: StockItemUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role.name not in ("admin",): raise HTTPException(403, "Only admins can manage stock")
+    if current_user.role.name not in ("admin", "financial"): raise HTTPException(403, "Only admin/financial can manage stock")
     i = db.query(StockItem).filter(StockItem.id == item_id).first()
     if not i: raise HTTPException(404, "Stock item not found")
     for k, v in data.model_dump(exclude_unset=True).items(): setattr(i, k, v)

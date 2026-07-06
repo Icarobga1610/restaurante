@@ -12,6 +12,11 @@ from app.services.audit_service import AuditService
 router = APIRouter(prefix="/api/clients", tags=["Clients"])
 
 
+def _validate_payment_day(payment_day: int | None) -> None:
+    if payment_day is not None and not 1 <= payment_day <= 31:
+        raise HTTPException(status_code=400, detail="Payment day must be between 1 and 31")
+
+
 @router.get("", response_model=list[ClientOut])
 def list_clients(
     status: Optional[str] = None,
@@ -48,6 +53,7 @@ def create_client(
 ):
     if current_user.role.name not in ("admin",):
         raise HTTPException(status_code=403, detail="Only admins can create clients")
+    _validate_payment_day(data.payment_day)
 
     if data.document:
         existing = db.query(Client).filter(Client.document == data.document).first()
@@ -86,6 +92,8 @@ def update_client(
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
+    if data.payment_day is not None:
+        _validate_payment_day(data.payment_day)
 
     before = {"name": client.name, "status": client.status, "phone": client.phone}
     for key, value in data.model_dump(exclude_unset=True).items():

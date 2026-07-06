@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { clients as clientsApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-toastify';
-import { Plus, Search, Edit, UserCheck, UserX, Phone, Building, DollarSign, X } from 'lucide-react';
+import { Plus, Search, Edit, UserCheck, UserX, Phone, Building, DollarSign, X, Fingerprint } from 'lucide-react';
 import EmptyState from '../components/EmptyState';
 import BiometricEnrollModal from '../components/BiometricEnrollModal';
 
@@ -13,9 +13,11 @@ export default function Clients() {
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showBioModal, setShowBioModal] = useState(false);
-  const [form, setForm] = useState({ name:'', document:'', phone:'', company_sector:'', monthly_limit:'', notes:'', is_account_client: false });
+  const [form, setForm] = useState({ name:'', document:'', phone:'', company_sector:'', monthly_limit:'', payment_day:'', notes:'', is_account_client: false });
   const [createdClient, setCreatedClient] = useState(null);
   const { hasRole } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const loadClients = async () => {
     try {
@@ -32,6 +34,18 @@ export default function Clients() {
 
   useEffect(() => { loadClients(); }, []);
 
+  useEffect(() => {
+    const clientId = location.state?.enrollBiometric;
+    if (!clientId || clients.length === 0) return;
+
+    const client = clients.find((c) => c.id === clientId);
+    if (client) {
+      setCreatedClient(client);
+      setShowBioModal(true);
+      navigate('/clients', { replace: true, state: {} });
+    }
+  }, [clients, location.state, navigate]);
+
   const createClient = async (e) => {
     e.preventDefault();
     if(!form.name || !form.phone){ toast.warning('Preencha nome e telefone'); return; }
@@ -42,13 +56,14 @@ export default function Clients() {
         phone: form.phone,
         company_sector: form.company_sector || null,
         monthly_limit: form.monthly_limit ? parseFloat(form.monthly_limit) : 0,
+        payment_day: form.payment_day ? parseInt(form.payment_day, 10) : null,
         notes: form.notes || null,
         is_account_client: !!form.is_account_client,
       });
       if (res.data?.id) setCreatedClient(res.data);
       toast.success('Cliente cadastrado!');
       setShowModal(false);
-      setForm({ name:'', document:'', phone:'', company_sector:'', monthly_limit:'', notes:'', is_account_client: false });
+      setForm({ name:'', document:'', phone:'', company_sector:'', monthly_limit:'', payment_day:'', notes:'', is_account_client: false });
       loadClients();
       if (res.data?.is_account_client) setShowBioModal(true);
     } catch (err) {
@@ -179,6 +194,16 @@ export default function Clients() {
                             <Edit size={16} />
                           </Link>
                           <button
+                            onClick={() => {
+                              setCreatedClient(client);
+                              setShowBioModal(true);
+                            }}
+                            className="p-1.5 hover:bg-primary-50 rounded-lg text-primary-600 transition-colors"
+                            title="Cadastrar digital"
+                          >
+                            <Fingerprint size={16} />
+                          </button>
+                          <button
                             onClick={() => toggleStatus(client)}
                             className={`p-1.5 rounded-lg transition-colors ${
                               client.status === 'active'
@@ -233,6 +258,10 @@ export default function Clients() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Limite Mensal</label>
                 <input type="number" className="input-field" value={form.monthly_limit} onChange={(e) => setForm({...form, monthly_limit: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dia de pagamento</label>
+                <input type="number" min="1" max="31" className="input-field" value={form.payment_day} onChange={(e) => setForm({...form, payment_day: e.target.value})} placeholder="Ex: 5" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Obs</label>

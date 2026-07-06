@@ -14,6 +14,7 @@ class Client(Base):
     status = Column(String(20), default="active")  # active / inactive
     monthly_limit = Column(Float, nullable=True)
     is_account_client = Column(Boolean, default=False)
+    payment_day = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

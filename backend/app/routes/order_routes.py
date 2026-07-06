@@ -1,4 +1,5 @@
-from datetime import datetime
+from calendar import monthrange
+from datetime import date, datetime
 from app.utils import utcnow
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
@@ -8,26 +9,23 @@ from typing import Optional
 from app.database import get_db
 from app.models.user import User
 from app.models.client import Client
+from app.models.product import Product
 from app.models.order import Order, OrderItem
-from app.models.monthly_account import MonthlyAccount, MonthlyAccountItem
+from app.models.monthly_account import MonthlyAccount
 from app.models.signature import Signature
-from app.models.payment import Payment
 from app.schemas.schemas import (
     OrderCreate,
     OrderUpdate,
     OrderOut,
     OrderItemOut,
-    MonthlyAccountCreate,
-    MonthlyAccountClose,
-    MonthlyAccountPay,
-    MonthlyAccountOut,
-    MonthlyAccountItemOut,
-    PaymentOut,
     SignatureCreate,
     SignatureOut,
 )
 from app.auth.auth import get_current_user
+from app.routes.biometric_routes import consume_verified_token
 from app.services.audit_service import AuditService
+from app.services.biometric_service import BiometricService
+from app.services.stock_service import StockService
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
 
@@ -98,19 +96,29 @@ def get_order(order_id: int, db: Session = Depends(get_db), _: User = Depends(ge
     )
 
 
-def _find_or_create_monthly_account(client_id: int, month: int, year: int, db: Session) -> MonthlyAccount:
+def _calculate_due_date(client: Client, month: int, year: int) -> date | None:
+    if not client.payment_day:
+        return None
+    day = max(1, min(int(client.payment_day), monthrange(year, month)[1]))
+    return date(year, month, day)
+
+
+def _find_or_create_monthly_account(client: Client, month: int, year: int, db: Session) -> MonthlyAccount:
     account = db.query(MonthlyAccount).filter(
-        MonthlyAccount.client_id == client_id,
+        MonthlyAccount.client_id == client.id,
         MonthlyAccount.month == month,
         MonthlyAccount.year == year,
     ).first()
     if account:
+        if not getattr(account, "due_date", None):
+            account.due_date = _calculate_due_date(client, month, year)
         return account
     account = MonthlyAccount(
-        client_id=client_id,
+        client_id=client.id,
         month=month,
         year=year,
         total=0.0,
+        due_date=_calculate_due_date(client, month, year),
         status="open",
     )
     db.add(account)
@@ -133,14 +141,18 @@ def create_order(
 
     if not data.items:
         raise HTTPException(status_code=400, detail="Order must have at least one item")
+    if data.payment_mode != "monthly_account":
+        raise HTTPException(status_code=400, detail="Invalid payment mode")
 
     now = utcnow()
     total = sum(item.total for item in data.items)
+    payment_mode = data.payment_mode
 
     order = Order(
         client_id=data.client_id,
         user_id=current_user.id,
         status="confirmed",
+        order_type="conta_mensal",
         notes=data.notes,
         total=total,
     )
@@ -160,21 +172,36 @@ def create_order(
         db.add(order_item)
 
     account = _find_or_create_monthly_account(
-        client_id=data.client_id,
+        client=client,
         month=now.month,
         year=now.year,
         db=db,
     )
-
     if data.tab_id:
         account = db.query(MonthlyAccount).filter(MonthlyAccount.id == data.tab_id).first() or account
 
     account.total = (account.total or 0.0) + total
     order.tab_id = account.id
 
+    if data.confirm_with_biometric:
+        if data.biometric_verification_token:
+            if not consume_verified_token(data.biometric_verification_token, client.id):
+                raise HTTPException(status_code=400, detail="Token de digital inválido ou expirado")
+        else:
+            success, _, message = BiometricService(db).verify_identity(
+                client_id=client.id,
+                performed_by=current_user.id,
+                ip_address=request.client.host if request.client else None,
+                detail_context=f"Lançamento do pedido #{order.id} na conta mensal #{account.id}",
+            )
+            if not success:
+                raise HTTPException(status_code=400, detail=message)
+
     db.commit()
     db.refresh(order)
     db.refresh(account)
+
+    stock_alerts = StockService(db).deduct_stock_for_order(order.id)
 
     AuditService(db).log(
         action="create",
@@ -183,7 +210,11 @@ def create_order(
         user_id=current_user.id,
         username=current_user.username,
         ip_address=request.client.host if request.client else None,
-        details=f"Created order for client {client.name}, total R$ {total:.2f}, linked to account #{account.id}",
+        details=(
+            f"Created order for client {client.name}, total R$ {total:.2f}, "
+            f"mode {payment_mode}, linked to account #{account.id}. "
+            f"Stock alerts: {'; '.join(stock_alerts) if stock_alerts else 'none'}"
+        ),
     )
 
     order = db.query(Order).options(
@@ -270,11 +301,14 @@ def add_order_signature(
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    client = db.query(Client).filter(Client.id == order.client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
 
     # ensure account exists
     now = utcnow()
     account = _find_or_create_monthly_account(
-        client_id=order.client_id,
+        client=client,
         month=now.month,
         year=now.year,
         db=db,

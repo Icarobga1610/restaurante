@@ -5,6 +5,12 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -14,10 +20,12 @@ from orjson import OPT_NON_STR_KEYS
 from orjson import OPT_UTC_Z
 from collections import defaultdict
 from time import time
+from sqlalchemy import inspect, text
 
 from app.utils import utcnow
 from app.database import engine, Base, get_db
 from app.models.user import User, Role
+from app.models.payment_method import PaymentMethod
 from app.auth.auth import hash_password
 
 # Import all route modules
@@ -39,7 +47,10 @@ from app.routes.table_routes import router as table_router
 from app.routes.tab_routes import router as tab_router
 from app.routes.cash_routes import router as cash_router
 from app.routes.expense_routes import router as expense_router
+from app.routes.finance_routes import router as finance_router
+from app.routes.payment_method_routes import router as payment_method_router
 from app.routes.kitchen_routes import router as kitchen_router
+from app.routes.delivery_routes import router as delivery_router
 
 
 class ORJSONResponse(JSONResponse):
@@ -147,11 +158,35 @@ def setup_logging() -> logging.Logger:
 logger = setup_logging()
 
 
+def _ensure_incremental_columns() -> None:
+    """Add safe additive columns for existing local databases."""
+    inspector = inspect(engine)
+    existing = {
+        table: {column["name"] for column in inspector.get_columns(table)}
+        for table in ("clients", "monthly_accounts")
+        if inspector.has_table(table)
+    }
+    statements = []
+    if "clients" in existing and "payment_day" not in existing["clients"]:
+        statements.append("ALTER TABLE clients ADD COLUMN payment_day INTEGER")
+    if "monthly_accounts" in existing and "due_date" not in existing["monthly_accounts"]:
+        statements.append("ALTER TABLE monthly_accounts ADD COLUMN due_date DATE")
+
+    if not statements:
+        return
+
+    with engine.begin() as conn:
+        for statement in statements:
+            conn.execute(text(statement))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting application", extra={"event": "startup"})
     Base.metadata.create_all(bind=engine)
+    _ensure_incremental_columns()
     _seed_initial_data()
+    _seed_payment_methods()
     logger.info("Application started successfully", extra={"event": "startup_complete"})
     yield
     logger.info("Application shutting down", extra={"event": "shutdown"})
@@ -235,17 +270,14 @@ app.include_router(table_router)
 app.include_router(tab_router)
 app.include_router(cash_router)
 app.include_router(expense_router)
+app.include_router(finance_router)
+app.include_router(payment_method_router)
 app.include_router(kitchen_router)
-
+app.include_router(delivery_router)
 
 @app.get("/api/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok", "timestamp": utcnow().isoformat()}
-
-# Temporary debug route: DO NOT ship to production
-@app.post("/__debug/clients-error")
-def debug_clients_error() -> dict[str, str]:
-    raise RuntimeError("deliberate debug to confirm exception handling path")
 
 
 def _seed_initial_data():
@@ -315,5 +347,30 @@ def _seed_initial_data():
     except Exception:
         db.rollback()
         logger.error("Error seeding initial data", exc_info=True)
+    finally:
+        db.close()
+
+
+def _seed_payment_methods():
+    """Seed default payment methods."""
+    from sqlalchemy.orm import Session
+    from app.database import SessionLocal
+
+    db: Session = SessionLocal()
+    try:
+        if db.query(PaymentMethod).count() > 0:
+            return
+        db.add_all([
+            PaymentMethod(code="pix", name="Pix", is_default=True, is_active=True),
+            PaymentMethod(code="cash", name="Dinheiro", is_active=True),
+            PaymentMethod(code="debit", name="Cartão de Débito", is_active=True),
+            PaymentMethod(code="credit", name="Cartão de Crédito", is_active=True),
+            PaymentMethod(code="transfer", name="Transferência", is_active=True),
+        ])
+        db.commit()
+        logger.info("Default payment methods seeded", extra={"event": "payment_methods_seed"})
+    except Exception:
+        db.rollback()
+        logger.error("Error seeding payment methods", exc_info=True)
     finally:
         db.close()

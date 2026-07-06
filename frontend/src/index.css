@@ -82,16 +82,6 @@
   }
 }
 
-/* Signature canvas */
-.signature-canvas {
-  @apply border-2 border-dashed border-gray-300 rounded-lg cursor-crosshair;
-  touch-action: none;
-}
-
-.signature-canvas:hover {
-  @apply border-primary-400;
-}
-
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

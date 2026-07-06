@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, Date, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -12,6 +12,7 @@ class MonthlyAccount(Base):
     month = Column(Integer, nullable=False)  # 1-12
     year = Column(Integer, nullable=False)
     total = Column(Float, default=0.0)
+    due_date = Column(Date, nullable=True)
     status = Column(String(30), default="open")  # open, closed, confirmed_by_biometrics, paid, overdue
     closed_at = Column(DateTime, nullable=True)
     closed_by = Column(Integer, ForeignKey("users.id"), nullable=True)

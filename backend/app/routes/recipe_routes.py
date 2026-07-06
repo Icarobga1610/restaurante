@@ -44,7 +44,7 @@ def get_recipe(recipe_id: int, db: Session = Depends(get_db), _: User = Depends(
 
 @router.post("", response_model=RecipeOut, status_code=201)
 def create_recipe(data: RecipeCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role.name not in ("admin",): raise HTTPException(403, "Only admins can manage recipes")
+    if current_user.role.name not in ("admin", "financial"): raise HTTPException(403, "Only admin/financial can manage recipes")
     existing = db.query(ProductRecipe).filter(ProductRecipe.product_id == data.product_id).first()
     if existing: raise HTTPException(400, "Product already has a recipe")
     recipe = ProductRecipe(product_id=data.product_id, notes=data.notes)
@@ -60,7 +60,7 @@ def create_recipe(data: RecipeCreate, db: Session = Depends(get_db), current_use
 
 @router.put("/{recipe_id}", response_model=RecipeOut)
 def update_recipe(recipe_id: int, data: RecipeCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role.name not in ("admin",): raise HTTPException(403, "Only admins can update recipes")
+    if current_user.role.name not in ("admin", "financial"): raise HTTPException(403, "Only admin/financial can update recipes")
     recipe = db.query(ProductRecipe).filter(ProductRecipe.id == recipe_id).first()
     if not recipe: raise HTTPException(404, "Recipe not found")
     # Remove old items

@@ -6,6 +6,7 @@ from .order import Order, OrderItem
 from .monthly_account import MonthlyAccount, MonthlyAccountItem
 from .signature import Signature
 from .payment import Payment
+from .payment_method import PaymentMethod
 from .audit_log import AuditLog
 from .insight import SeasonalityMetric, InsightLog
 from .biometric_profile import BiometricProfile

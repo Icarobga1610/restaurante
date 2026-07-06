@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
   LayoutDashboard, Users, ShoppingBag, ClipboardList, FileText,
-  PenTool, BarChart3, History, LogOut, Menu, X, ChevronDown,
+  Fingerprint, Truck, BarChart3, History, LogOut, Menu, X, Package, Calculator,
   UtensilsCrossed, Bell
 } from 'lucide-react';
 
@@ -11,9 +11,14 @@ const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { label: 'Clientes', icon: Users, path: '/clients' },
   { label: 'Produtos', icon: ShoppingBag, path: '/products' },
+  { label: 'Ingredientes', icon: Package, path: '/ingredients' },
+  { label: 'Fichas Técnicas', icon: ClipboardList, path: '/recipes' },
   { label: 'Pedidos', icon: ClipboardList, path: '/orders' },
   { label: 'Contas Mensais', icon: FileText, path: '/monthly-accounts' },
-  { label: 'Assinatura', icon: PenTool, path: '/signature' },
+  { label: 'Entrega', icon: Truck, path: '/delivery' },
+  { label: 'Biometria', icon: Fingerprint, path: '/biometric' },
+  { label: 'Livro Caixa', icon: Calculator, path: '/cash-book' },
+  { label: 'Pagamentos', icon: Calculator, path: '/payment-methods' },
   { label: 'Relatórios', icon: BarChart3, path: '/reports' },
   { label: 'Auditoria', icon: History, path: '/audit' },
 ];

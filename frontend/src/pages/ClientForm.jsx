@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { clients as clientsApi } from '../services/api';
 import { toast } from 'react-toastify';
-import { Save, ArrowLeft, User } from 'lucide-react';
+import { Save, ArrowLeft, Fingerprint } from 'lucide-react';
+import BiometricEnrollModal from '../components/BiometricEnrollModal';
 
 export default function ClientForm() {
   const { id } = useParams();
@@ -10,12 +11,17 @@ export default function ClientForm() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(isEdit);
+  const [savedClient, setSavedClient] = useState(null);
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [enrollAfterSave, setEnrollAfterSave] = useState(false);
   const [form, setForm] = useState({
     name: '',
     document: '',
     phone: '',
     company_sector: '',
     monthly_limit: '',
+    is_account_client: false,
+    payment_day: '',
     notes: '',
     status: 'active',
   });
@@ -30,9 +36,12 @@ export default function ClientForm() {
           phone: c.phone || '',
           company_sector: c.company_sector || '',
           monthly_limit: c.monthly_limit ? String(c.monthly_limit) : '',
+          is_account_client: !!c.is_account_client,
+          payment_day: c.payment_day ? String(c.payment_day) : '',
           notes: c.notes || '',
           status: c.status || 'active',
         });
+        setSavedClient(c);
       }).catch(() => {
         toast.error('Erro ao carregar cliente');
         navigate('/clients');
@@ -52,14 +61,21 @@ export default function ClientForm() {
       const payload = {
         ...form,
         monthly_limit: form.monthly_limit ? parseFloat(form.monthly_limit) : null,
+        payment_day: form.payment_day ? parseInt(form.payment_day, 10) : null,
       };
 
       if (isEdit) {
-        await clientsApi.update(id, payload);
+        const res = await clientsApi.update(id, payload);
+        setSavedClient(res.data);
         toast.success('Cliente atualizado com sucesso!');
       } else {
-        await clientsApi.create(payload);
+        const res = await clientsApi.create(payload);
+        setSavedClient(res.data);
         toast.success('Cliente criado com sucesso!');
+        if (enrollAfterSave) {
+          setShowBiometricModal(true);
+          return;
+        }
       }
       navigate('/clients');
     } catch (err) {
@@ -70,7 +86,8 @@ export default function ClientForm() {
   };
 
   const handleChange = (field) => (e) => {
-    setForm({ ...form, [field]: e.target.value });
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setForm({ ...form, [field]: value });
   };
 
   if (fetching) {
@@ -124,6 +141,34 @@ export default function ClientForm() {
             <input type="number" step="0.01" min="0" className="input-field" value={form.monthly_limit} onChange={handleChange('monthly_limit')} placeholder="Opcional" />
           </div>
 
+          <div className="md:col-span-2 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+            <input
+              id="is_account_client"
+              type="checkbox"
+              checked={!!form.is_account_client}
+              onChange={(e) => {
+                setForm({ ...form, is_account_client: e.target.checked });
+                if (e.target.checked) setEnrollAfterSave(true);
+              }}
+            />
+            <label htmlFor="is_account_client" className="text-sm text-gray-700">
+              Cliente de conta mensal
+            </label>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Dia de pagamento</label>
+            <input
+              type="number"
+              min="1"
+              max="31"
+              className="input-field"
+              value={form.payment_day}
+              onChange={handleChange('payment_day')}
+              placeholder="Ex: 5"
+            />
+          </div>
+
           {isEdit && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -140,6 +185,47 @@ export default function ClientForm() {
           </div>
         </div>
 
+        {isEdit ? (
+          <div className="rounded-lg border border-primary-100 bg-primary-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-white rounded-lg">
+                <Fingerprint size={20} className="text-primary-600" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-800">Digital do cliente</p>
+                <p className="text-sm text-gray-500">
+                  Cadastre ou atualize a digital usada na confirmação de contas mensais.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBiometricModal(true)}
+              className="btn-secondary flex items-center justify-center gap-2"
+            >
+              <Fingerprint size={16} />
+              Cadastrar Digital
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-lg border border-primary-100 bg-primary-50 p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={enrollAfterSave}
+                onChange={(e) => setEnrollAfterSave(e.target.checked)}
+              />
+              <span>
+                <span className="block font-medium text-gray-800">Cadastrar digital depois de salvar</span>
+                <span className="block text-sm text-gray-500">
+                  Após criar o cliente, o sistema abrirá a captura da digital.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+
         <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
           <button type="submit" disabled={loading} className="btn-primary flex items-center gap-2">
             {loading ? (
@@ -154,6 +240,22 @@ export default function ClientForm() {
           </button>
         </div>
       </form>
+
+      {showBiometricModal && savedClient ? (
+        <BiometricEnrollModal
+          clientId={savedClient.id}
+          clientName={savedClient.name}
+          onClose={() => {
+            setShowBiometricModal(false);
+            if (!isEdit) navigate('/clients');
+          }}
+          onEnrolled={() => {
+            toast.success('Digital cadastrada para este cliente.');
+            setShowBiometricModal(false);
+            if (!isEdit) navigate('/clients');
+          }}
+        />
+      ) : null}
     </div>
   );
 }

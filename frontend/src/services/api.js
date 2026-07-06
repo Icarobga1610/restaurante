@@ -31,6 +31,7 @@ api.interceptors.response.use(
     if (status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      window.dispatchEvent(new Event('auth:unauthorized'));
       return Promise.reject(error);
     }
     if (status === 403) {
@@ -99,6 +100,12 @@ export const biometrics = {
   enroll: (data) => api.post('/biometrics/enroll', data),
   verify: (data) => api.post('/biometrics/verify', data),
   verifyIdentity: (data) => api.post('/biometrics/verify-identity', data),
+  webauthn: {
+    enrollOptions: (data) => api.post('/biometrics/webauthn/enroll/options', data),
+    enrollComplete: (data) => api.post('/biometrics/webauthn/enroll/complete', data),
+    verifyOptions: (data) => api.post('/biometrics/webauthn/verify/options', data),
+    verifyComplete: (data) => api.post('/biometrics/webauthn/verify/complete', data),
+  },
   profiles: {
     list: (params) => api.get('/biometrics/profiles', { params }),
     get: (id) => api.get(`/biometrics/profiles/${id}`),
@@ -128,6 +135,67 @@ export const insights = {
   peakHours: () => api.get('/insights/seasonality/peak-hours'),
   topClients: () => api.get('/insights/seasonality/top-clients'),
   categoryConsumption: () => api.get('/insights/seasonality/category-consumption'),
+};
+
+// === Stock / Ingredients ===
+export const stock = {
+  items: {
+    list: (params) => api.get('/stock/items', { params }),
+    get: (id) => api.get(`/stock/items/${id}`),
+    create: (data) => api.post('/stock/items', data),
+    update: (id, data) => api.put(`/stock/items/${id}`, data),
+  },
+  movements: {
+    list: (params) => api.get('/stock/movements', { params }),
+    create: (data) => api.post('/stock/movements', data),
+  },
+  alerts: {
+    lowStock: () => api.get('/stock/alerts/low-stock'),
+    expiring: (params) => api.get('/stock/alerts/expiring', { params }),
+  },
+};
+
+// === Recipes / Technical Sheets ===
+export const recipes = {
+  list: () => api.get('/recipes'),
+  get: (id) => api.get(`/recipes/${id}`),
+  create: (data) => api.post('/recipes', data),
+  update: (id, data) => api.put(`/recipes/${id}`, data),
+  recalculate: (id) => api.post(`/recipes/${id}/recalculate`),
+};
+
+// === Finance ===
+export const finance = {
+  ledger: (params) => api.get('/finance/ledger', { params }),
+};
+
+// === Payment Methods ===
+export const paymentMethods = {
+  list: (params) => api.get('/payment-methods', { params }),
+  getDefault: () => api.get('/payment-methods/default'),
+  create: (data) => api.post('/payment-methods', data),
+  update: (id, data) => api.put(`/payment-methods/${id}`, data),
+  setDefault: (id) => api.post(`/payment-methods/${id}/default`),
+};
+
+// === Delivery ===
+export const delivery = {
+  platforms: {
+    list: (params) => api.get('/delivery/platforms', { params }),
+    create: (data) => api.post('/delivery/platforms', data),
+    get: (slug) => api.get(`/delivery/platforms/${slug}`),
+  },
+  orders: {
+    list: (params) => api.get('/delivery/orders', { params }),
+    get: (id) => api.get(`/delivery/orders/${id}`),
+    create: (data) => api.post('/delivery/orders/incoming', data),
+    ack: (id) => api.post(`/delivery/orders/${id}/ack`),
+    cancel: (id) => api.post(`/delivery/orders/${id}/cancel`),
+    convert: (id) => api.post(`/delivery/orders/${id}/convert-order`),
+  },
+  webhooks: {
+    send: (slug, data) => api.post(`/delivery/webhook/${slug}`, data),
+  },
 };
 
 // === Audit ===

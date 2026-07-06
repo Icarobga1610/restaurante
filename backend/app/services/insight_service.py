@@ -20,7 +20,7 @@ class InsightService:
         """Products most sold by day of week."""
         results = (
             self.db.query(
-                func.strftime("%w", Order.created_at).label("day_of_week"),
+                func.to_char(Order.created_at, 'D').label("day_of_week"),
                 OrderItem.product_id,
                 OrderItem.product_name,
                 func.sum(OrderItem.quantity).label("total_qty"),
@@ -33,10 +33,12 @@ class InsightService:
             .all()
         )
 
-        days = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
+        days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
         by_day = defaultdict(list)
         for row in results:
-            day_name = days[int(row.day_of_week)] if row.day_of_week and int(row.day_of_week) < 7 else "Desconhecido"
+            raw_day = int(row.day_of_week) if row.day_of_week is not None else None
+            idx = (raw_day + 6) % 7 if raw_day is not None else -1
+            day_name = days[idx] if idx >= 0 else "Desconhecido"
             by_day[day_name].append({
                 "product_id": row.product_id,
                 "product_name": row.product_name,
@@ -57,7 +59,7 @@ class InsightService:
         """Products most sold by month."""
         results = (
             self.db.query(
-                func.strftime("%Y-%m", Order.created_at).label("month"),
+                func.to_char(Order.created_at, 'YYYY-MM').label("month"),
                 OrderItem.product_id,
                 OrderItem.product_name,
                 func.sum(OrderItem.quantity).label("total_qty"),
@@ -87,7 +89,7 @@ class InsightService:
         """Peak hours of movement."""
         results = (
             self.db.query(
-                func.strftime("%H", Order.created_at).label("hour"),
+                func.to_char(Order.created_at, 'HH').label("hour"),
                 func.count(Order.id).label("order_count"),
                 func.sum(Order.total).label("total_revenue"),
             )
@@ -226,7 +228,7 @@ class InsightService:
                 "data": {"count": overdue},
             })
 
-        # Unsigned accounts
+        # Accounts closed but not yet confirmed by fingerprint.
         unsigned = (
             self.db.query(MonthlyAccount)
             .filter(MonthlyAccount.status == "closed", MonthlyAccount.biometric_verification_id.is_(None))
@@ -235,8 +237,8 @@ class InsightService:
         if unsigned > 0:
             insights.append({
                 "type": "unsigned_accounts",
-                "title": f"{unsigned} conta(s) fechada(s) sem assinatura",
-                "description": f"Existem {unsigned} contas mensais fechadas que ainda não foram assinadas.",
+                "title": f"{unsigned} conta(s) fechada(s) sem biometria",
+                "description": f"Existem {unsigned} contas mensais fechadas que ainda não foram confirmadas por digital.",
                 "severity": "warning",
                 "data": {"count": unsigned},
             })
@@ -284,7 +286,7 @@ class InsightService:
                 self.db.query(func.sum(Order.total))
                 .filter(
                     Order.client_id == client.id,
-                    func.strftime("%Y-%m", Order.created_at) == f"{current_year}-{current_month:02d}",
+                    func.to_char(Order.created_at, 'YYYY-MM') == f"{current_year}-{current_month:02d}",
                     Order.status.in_(["confirmed", "invoiced"]),
                 )
                 .scalar() or 0
@@ -307,7 +309,7 @@ class InsightService:
             )
             .join(Order, Order.id == OrderItem.order_id)
             .filter(
-                func.strftime("%Y-%m", Order.created_at) == f"{current_year}-{current_month:02d}",
+                func.to_char(Order.created_at, 'YYYY-MM') == f"{current_year}-{current_month:02d}",
                 Order.status.in_(["confirmed", "invoiced", "paid"]),
             )
             .group_by(OrderItem.product_id, OrderItem.product_name)
@@ -322,7 +324,7 @@ class InsightService:
                 )
                 .join(Order, Order.id == OrderItem.order_id)
                 .filter(
-                    func.strftime("%Y-%m", Order.created_at) == f"{prev_year}-{prev_month:02d}",
+                    func.to_char(Order.created_at, 'YYYY-MM') == f"{prev_year}-{prev_month:02d}",
                     Order.status.in_(["confirmed", "invoiced", "paid"]),
                 )
                 .group_by(OrderItem.product_id)

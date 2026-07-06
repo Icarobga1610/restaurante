@@ -312,3 +312,54 @@ class BiometricService:
 
         self.db.commit()
         return (True, "confirmed_by_biometrics", "Digital verificada com sucesso! Conta confirmada por biometria.")
+
+    def verify_identity(
+        self,
+        client_id: int,
+        performed_by: Optional[int] = None,
+        ip_address: Optional[str] = None,
+        detail_context: Optional[str] = None,
+    ) -> Tuple[bool, Optional[int], str]:
+        """Verify a client's fingerprint without changing account/payment status."""
+        profile = self.db.query(BiometricProfile).filter(
+            BiometricProfile.client_id == client_id,
+            BiometricProfile.is_active == True,
+        ).first()
+        if not profile:
+            return (False, None, "Cliente não possui cadastro biométrico")
+
+        if not self.check_consent(profile.id, "verification"):
+            return (False, None, "Consentimento biométrico não autorizado")
+
+        try:
+            stored_template = self.decrypt_data(profile.encrypted_template)
+        except Exception:
+            return (False, None, "Erro ao descriptografar template biométrico")
+
+        success, score, detail = self.reader.verify(stored_template)
+        event = BiometricEvent(
+            profile_id=profile.id,
+            event_type="identity_verify_success" if success else "identity_verify_fail",
+            success=success,
+            match_score=score,
+            detail=detail_context or detail or ("Digital verificada" if success else "Digital não reconhecida"),
+            performed_by=performed_by,
+            ip_address=ip_address,
+        )
+        self.db.add(event)
+
+        if not success:
+            self.db.flush()
+            return (False, profile.id, detail or "Digital não reconhecida")
+
+        profile.last_used_at = utcnow()
+        self.audit.log(
+            action="biometric_identity_verify",
+            entity_type="client",
+            entity_id=client_id,
+            user_id=performed_by,
+            ip_address=ip_address,
+            details=detail_context or f"Biometric identity verification for client #{client_id} — score: {score}%",
+        )
+        self.db.flush()
+        return (True, profile.id, "Digital verificada com sucesso.")

@@ -12,7 +12,7 @@ const ACTION_LABELS = {
   login_failed: 'Falha Login',
   logout: 'Logout',
   close: 'Fechamento',
-  sign: 'Assinatura',
+  sign: 'Confirmação biométrica',
   pay: 'Pagamento',
 };
 
@@ -67,7 +67,7 @@ export default function AuditLogs() {
           <option value="product">Produto</option>
           <option value="order">Pedido</option>
           <option value="monthly_account">Conta Mensal</option>
-          <option value="signature">Assinatura</option>
+          <option value="signature">Biometria</option>
           <option value="payment">Pagamento</option>
           <option value="user">Usuário</option>
         </select>
