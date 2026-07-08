@@ -43,10 +43,22 @@ def test_create_duplicate_monthly_account(client, admin_token, sample_client):
 
 
 def test_close_monthly_account(client, admin_token, financial_token, sample_client, sample_product):
-    """Test closing a monthly account calculates total from orders."""
+    """Test closing a monthly account calculates total from orders.
+
+    Note: orders of type monthly_account auto-attach to (and create) the
+    monthly account for the period, so we create the account first and then
+    place orders that roll into it.
+    """
     now = utcnow()
 
-    # Create orders for the client in the current month
+    # Create monthly account first
+    account = client.post(
+        "/api/monthly-accounts",
+        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()
+
+    # Create orders for the client in the current month (auto-attach to account)
     client.post(
         "/api/orders",
         json={
@@ -80,13 +92,6 @@ def test_close_monthly_account(client, admin_token, financial_token, sample_clie
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 
-    # Create monthly account
-    account = client.post(
-        "/api/monthly-accounts",
-        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
-        headers={"Authorization": f"Bearer {admin_token}"},
-    ).json()
-
     # Close the account (requires financial or admin)
     response = client.post(
         f"/api/monthly-accounts/{account['id']}/close",
@@ -104,6 +109,13 @@ def test_close_monthly_account(client, admin_token, financial_token, sample_clie
 def test_monthly_total_calculation(client, admin_token, financial_token, sample_client, sample_product):
     """Test that monthly total correctly sums all orders."""
     now = utcnow()
+
+    # Create account first
+    account = client.post(
+        "/api/monthly-accounts",
+        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()
 
     # Create 3 orders with different values
     amounts = [45.0, 32.50, 78.20]
@@ -124,12 +136,6 @@ def test_monthly_total_calculation(client, admin_token, financial_token, sample_
             },
             headers={"Authorization": f"Bearer {admin_token}"},
         )
-
-    account = client.post(
-        "/api/monthly-accounts",
-        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
-        headers={"Authorization": f"Bearer {admin_token}"},
-    ).json()
 
     response = client.post(
         f"/api/monthly-accounts/{account['id']}/close",
@@ -171,7 +177,14 @@ def test_pay_monthly_account(client, admin_token, financial_token, sample_client
     """Test paying a confirmed_by_biometrics monthly account."""
     now = utcnow()
 
-    # Create order
+    # Create and close account first
+    account = client.post(
+        "/api/monthly-accounts",
+        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()
+
+    # Create order (rolls into the account)
     client.post(
         "/api/orders",
         json={
@@ -189,13 +202,7 @@ def test_pay_monthly_account(client, admin_token, financial_token, sample_client
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 
-    # Create and close account
-    account = client.post(
-        "/api/monthly-accounts",
-        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
-        headers={"Authorization": f"Bearer {admin_token}"},
-    ).json()
-
+    # Close the account
     client.post(
         f"/api/monthly-accounts/{account['id']}/close",
         json={},

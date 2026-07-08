@@ -58,8 +58,12 @@ export default function ClientForm() {
 
     setLoading(true);
     try {
+      // `status` is only accepted by ClientUpdate (edit), not ClientCreate.
+      // Sending it on create triggers extra="forbid" (422) and the client
+      // is never created. Strip it from the create payload.
+      const { status, ...rest } = form;
       const payload = {
-        ...form,
+        ...rest,
         monthly_limit: form.monthly_limit ? parseFloat(form.monthly_limit) : null,
         payment_day: form.payment_day ? parseInt(form.payment_day, 10) : null,
       };

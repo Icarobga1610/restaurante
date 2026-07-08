@@ -177,11 +177,11 @@ def create_order(
         year=now.year,
         db=db,
     )
-    if data.tab_id:
-        account = db.query(MonthlyAccount).filter(MonthlyAccount.id == data.tab_id).first() or account
+    if data.monthly_account_id:
+        account = db.query(MonthlyAccount).filter(MonthlyAccount.id == data.monthly_account_id).first() or account
 
     account.total = (account.total or 0.0) + total
-    order.tab_id = account.id
+    order.monthly_account_id = account.id
 
     if data.confirm_with_biometric:
         if data.biometric_verification_token:

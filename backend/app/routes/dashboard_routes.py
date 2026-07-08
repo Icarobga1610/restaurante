@@ -2,9 +2,10 @@ from datetime import datetime
 from app.utils import utcnow
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import func, extract, cast, String
+from sqlalchemy.sql import text
 
-from app.database import get_db
+from app.database import get_db, engine
 from app.models.user import User
 from app.models.client import Client
 from app.models.product import Product
@@ -126,18 +127,24 @@ def get_dashboard(
     )
     data.average_ticket = round(float(avg_ticket or 0), 2)
 
-    # Consumption by day
+    # Consumption by day (works on both SQLite and PostgreSQL)
+    is_postgres = engine.dialect.name == "postgresql"
+    day_expr = (
+        func.to_char(Order.created_at, "DD/MM")
+        if is_postgres
+        else func.strftime("%d/%m", Order.created_at)
+    )
     consumption_by_day = (
         db.query(
-            func.to_char(Order.created_at, 'DD/MM').label('day'),
-            func.sum(Order.total).label('total'),
+            day_expr.label("day"),
+            func.sum(Order.total).label("total"),
         )
         .filter(
-            extract('month', Order.created_at) == month,
-            extract('year', Order.created_at) == year,
-            Order.status.in_(['confirmed', 'invoiced', 'paid']),
+            extract("month", Order.created_at) == month,
+            extract("year", Order.created_at) == year,
+            Order.status.in_(["confirmed", "invoiced", "paid"]),
         )
-        .group_by('day')
+        .group_by(day_expr)
         .order_by(func.min(Order.created_at))
         .all()
     )

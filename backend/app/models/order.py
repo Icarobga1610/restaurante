@@ -11,6 +11,7 @@ class Order(Base):
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=True)
+    monthly_account_id = Column(Integer, ForeignKey("monthly_accounts.id"), nullable=True)
     table_id = Column(Integer, ForeignKey("restaurant_tables.id"), nullable=True)
     status = Column(String(30), default="open")
     # open, confirmed, in_preparation, ready, delivered, cancelled, invoiced, paid
@@ -33,6 +34,7 @@ class Order(Base):
     client = relationship("Client")
     user = relationship("User")
     tab = relationship("Tab")
+    monthly_account = relationship("MonthlyAccount")
     table = relationship("RestaurantTable")
     delivery_address = relationship("DeliveryAddress")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")

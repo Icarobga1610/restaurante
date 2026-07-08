@@ -5,12 +5,6 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    pass
-
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -22,6 +16,7 @@ from collections import defaultdict
 from time import time
 from sqlalchemy import inspect, text
 
+from app.config import settings
 from app.utils import utcnow
 from app.database import engine, Base, get_db
 from app.models.user import User, Role
@@ -163,7 +158,7 @@ def _ensure_incremental_columns() -> None:
     inspector = inspect(engine)
     existing = {
         table: {column["name"] for column in inspector.get_columns(table)}
-        for table in ("clients", "monthly_accounts")
+        for table in ("clients", "monthly_accounts", "orders")
         if inspector.has_table(table)
     }
     statements = []
@@ -171,6 +166,10 @@ def _ensure_incremental_columns() -> None:
         statements.append("ALTER TABLE clients ADD COLUMN payment_day INTEGER")
     if "monthly_accounts" in existing and "due_date" not in existing["monthly_accounts"]:
         statements.append("ALTER TABLE monthly_accounts ADD COLUMN due_date DATE")
+    if "monthly_accounts" in existing and "over_limit" not in existing["monthly_accounts"]:
+        statements.append("ALTER TABLE monthly_accounts ADD COLUMN over_limit BOOLEAN DEFAULT FALSE")
+    if "orders" in existing and "monthly_account_id" not in existing["orders"]:
+        statements.append("ALTER TABLE orders ADD COLUMN monthly_account_id INTEGER REFERENCES monthly_accounts(id)")
 
     if not statements:
         return
@@ -192,17 +191,27 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutting down", extra={"event": "shutdown"})
 
 
+# In production (DEBUG=false) the interactive docs are disabled to avoid
+# exposing a complete map of the API surface to unauthenticated users.
+_docs_url = "/docs" if settings.debug else None
+_openapi_url = "/openapi.json" if settings.debug else None
+
 app = FastAPI(
     title="Restaurante Conta Mensal - API",
     description="Sistema de gestão de restaurante com controle de conta mensal para clientes",
     version="1.0.0",
     lifespan=lifespan,
     default_response_class=ORJSONResponse,
+    docs_url=_docs_url,
+    openapi_url=_openapi_url,
 )
+
+# Parse CORS origins from settings
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -210,7 +219,12 @@ app.add_middleware(
 
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(AuthRateLimitMiddleware)
+
+# Auth rate limiting is enabled in production but can be disabled (e.g. in tests)
+# via environment variable. Under TestClient all requests share a single client
+# host, so the per-host login limit would otherwise throttle the whole suite.
+if os.getenv("AUTH_RATE_LIMIT_ENABLED", "true").lower() != "false":
+    app.add_middleware(AuthRateLimitMiddleware)
 
 
 @app.exception_handler(Exception)
@@ -274,6 +288,7 @@ app.include_router(finance_router)
 app.include_router(payment_method_router)
 app.include_router(kitchen_router)
 app.include_router(delivery_router)
+
 
 @app.get("/api/health")
 def health_check() -> dict[str, str]:

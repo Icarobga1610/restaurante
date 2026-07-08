@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = process.env.VITE_API_BASE_URL || 'http://localhost:5173';
+const API_BASE = process.env.VITE_API_BASE_URL || 'http://localhost:8030';
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -15,10 +15,6 @@ async function request(method, path, payload) {
     validateStatus: () => true,
   });
   return { ok: response.status >= 200 && response.status < 300, status: response.status, body: response.data };
-}
-
-export async function fetchCsrfToken() {
-  return request('GET', '/api/auth/csrf');
 }
 
 export async function login(username, password) {
@@ -52,4 +48,4 @@ export async function payAccount(accountId) {
   return request('POST', `/api/monthly-accounts/${encodeURIComponent(accountId)}/pay`, {});
 }
 
-export default { fetchCsrfToken, login, createAccountClient, enrollBiometric, createAccount, closeAccount, verifyBiometric, payAccount };
+export default { login, createAccountClient, enrollBiometric, createAccount, closeAccount, verifyBiometric, payAccount };

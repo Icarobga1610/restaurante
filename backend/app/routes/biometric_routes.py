@@ -385,6 +385,17 @@ def verify_fingerprint(
     )
 
 
+@router.post("/verify-identity", response_model=BiometricVerifyResult)
+def verify_identity(
+    data: BiometricVerifyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Alias of /verify kept for client compatibility (verify client identity)."""
+    return verify_fingerprint(data, request, db, current_user)
+
+
 @router.get("/profiles", response_model=list[BiometricProfileOut])
 def list_biometric_profiles(
     client_id: Optional[int] = None,

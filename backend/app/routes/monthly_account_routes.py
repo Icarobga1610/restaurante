@@ -1,5 +1,6 @@
 from calendar import monthrange
 from datetime import date, datetime
+import hashlib
 from app.utils import utcnow
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
@@ -124,6 +125,7 @@ def get_monthly_account(account_id: int, db: Session = Depends(get_db), _: User 
         paid_by=a.paid_by,
         paid_by_name=a.payer.full_name if a.payer else None,
         notes=a.notes,
+        over_limit=a.over_limit,
         items=[MonthlyAccountItemOut.model_validate(i) for i in items],
         created_at=a.created_at,
         updated_at=a.updated_at,
@@ -180,6 +182,10 @@ def close_monthly_account(
     if account.status != "open":
         raise HTTPException(status_code=400, detail=f"Account is already {account.status}")
 
+    client = db.query(Client).filter(Client.id == account.client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
     # Find all confirmed orders for this client in the period
     orders = db.query(Order).filter(
         Order.client_id == account.client_id,
@@ -204,6 +210,20 @@ def close_monthly_account(
     account.status = "closed"
     account.closed_at = utcnow()
     account.closed_by = current_user.id
+
+    # Enforce credit limit (domain rule for monthly accounts)
+    over_limit = bool(
+        client.monthly_limit is not None
+        and client.monthly_limit > 0
+        and total > client.monthly_limit
+    )
+    account.over_limit = over_limit
+    credit_note = ""
+    if over_limit:
+        credit_note = (
+            f" | CREDIT LIMIT EXCEEDED: limit R$ {client.monthly_limit:.2f}, "
+            f"used R$ {total:.2f} (over by R$ {total - client.monthly_limit:.2f})"
+        )
     if data.notes:
         account.notes = data.notes
 
@@ -216,7 +236,7 @@ def close_monthly_account(
         user_id=current_user.id,
         username=current_user.username,
         ip_address=request.client.host if request.client else None,
-        details=f"Closed monthly account for client #{account.client_id}, month {account.month}/{account.year}, total R$ {total:.2f}",
+        details=f"Closed monthly account for client #{account.client_id}, month {account.month}/{account.year}, total R$ {total:.2f}{credit_note}",
     )
 
     return get_monthly_account(account.id, db, current_user)
@@ -307,9 +327,15 @@ def pay_monthly_account(
             )
             .first()
         )
-        verification_hash = getattr(getattr(bio, "verification_hash", None), "verification_hash", None)
-        if verification_hash is None and signature_data:
-            verification_hash = f"{signature_data}:{account.id}"
+        # Use a cryptographic hash of the signature payload as the verification
+        # token (never store the raw image here). Falls back to the existing
+        # hash when re-signing an already signed account.
+        if bio is not None and getattr(bio, "verification_hash", None):
+            verification_hash = bio.verification_hash
+        else:
+            verification_hash = hashlib.sha256(
+                f"{signature_data}:{account.id}".encode()
+            ).hexdigest()
         signature = Signature(
             monthly_account_id=account.id,
             client_id=account.client_id,
