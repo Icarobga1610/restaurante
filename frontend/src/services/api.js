@@ -22,22 +22,43 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor to handle auth / permission errors centrally
+// Response interceptor: centralize auth/permission handling AND transparently
+// refresh the access token on 401 (rotating the server-side refresh token).
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config || {};
     const status = error?.response?.status;
-    const detail = error?.response?.data?.detail;
-    if (status === 401) {
+
+    // Try a single token refresh on 401, then retry the original request.
+    if (status === 401 && !originalRequest._retry) {
+      const refreshToken = localStorage.getItem('refresh');
+      if (refreshToken) {
+        originalRequest._retry = true;
+        try {
+          // Imported lazily to avoid a circular dependency at module load.
+          const { auth } = await import('../services/api');
+          const resp = await auth.refresh(refreshToken);
+          const { access_token } = resp.data;
+          localStorage.setItem('token', access_token);
+          originalRequest.headers.Authorization = `Bearer ${access_token}`;
+          return api(originalRequest);
+        } catch {
+          // Refresh failed: treat as a real logout.
+        }
+      }
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('refresh');
       window.dispatchEvent(new Event('auth:unauthorized'));
       return Promise.reject(error);
     }
+
     if (status === 403) {
       toast.error('Sem autorização para essa ação.');
       return Promise.reject(error);
     }
+    const detail = error?.response?.data?.detail;
     if (detail) {
       toast.error(detail);
       return Promise.reject(error);
@@ -52,6 +73,8 @@ export default api;
 // === Auth ===
 export const auth = {
   login: (username, password) => api.post('/auth/login', { username, password }),
+  refresh: (refreshToken) => api.post('/auth/refresh', { refresh_token: refreshToken }, { _retry: true }),
+  logout: (refreshToken) => api.post('/auth/logout', { refresh_token: refreshToken }, { _retry: true }),
   getMe: () => api.get('/auth/users/me'),
   getRoles: () => api.get('/auth/roles'),
   createUser: (data) => api.post('/auth/users', data),
