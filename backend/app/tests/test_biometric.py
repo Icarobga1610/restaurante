@@ -91,7 +91,14 @@ def test_biometric_verify_monthly_account(client, admin_token, financial_token, 
     """Test biometric verification for monthly closing (replaces old signature flow)."""
     now = utcnow()
 
-    # Create order
+    # Create monthly account first (orders auto-attach to it)
+    account = client.post(
+        "/api/monthly-accounts",
+        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()
+
+    # Create order (rolls into the account)
     client.post(
         "/api/orders",
         json={
@@ -114,13 +121,7 @@ def test_biometric_verify_monthly_account(client, admin_token, financial_token, 
         headers={"Authorization": f"Bearer {admin_token}"},
     )
 
-    # Create and close monthly account
-    account = client.post(
-        "/api/monthly-accounts",
-        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
-        headers={"Authorization": f"Bearer {admin_token}"},
-    ).json()
-
+    # Close monthly account
     client.post(
         f"/api/monthly-accounts/{account['id']}/close",
         json={},
@@ -144,7 +145,14 @@ def test_biometric_verify_updates_account_status(client, admin_token, financial_
     """Test that biometric verification updates account status."""
     now = utcnow()
 
-    # Create order
+    # Create monthly account first
+    account = client.post(
+        "/api/monthly-accounts",
+        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()
+
+    # Create order (rolls into the account)
     client.post(
         "/api/orders",
         json={
@@ -168,12 +176,6 @@ def test_biometric_verify_updates_account_status(client, admin_token, financial_
     )
 
     # Create, close, verify
-    account = client.post(
-        "/api/monthly-accounts",
-        json={"client_id": sample_client.id, "month": now.month, "year": now.year},
-        headers={"Authorization": f"Bearer {admin_token}"},
-    ).json()
-
     client.post(
         f"/api/monthly-accounts/{account['id']}/close",
         json={},

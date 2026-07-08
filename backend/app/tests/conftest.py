@@ -1,4 +1,5 @@
 """Pytest fixtures for integration tests."""
+
 import os
 import sys
 import pytest
@@ -8,6 +9,10 @@ from sqlalchemy.orm import sessionmaker
 
 # Ensure backend is in path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+# TestClient shares a single client host, so the per-host auth rate limit would
+# throttle the suite. Disable it for tests (must be set before importing app).
+os.environ["AUTH_RATE_LIMIT_ENABLED"] = "false"
 
 from app.database import Base, get_db
 from app.main import app
@@ -41,10 +46,34 @@ def override_get_db():
         db.close()
 
 
+@pytest.fixture
+def db_session_factory():
+    """Return the test sessionmaker so fixtures can open short-lived sessions."""
+    return TestingSessionLocal
+
+
 @pytest.fixture(autouse=True)
-def setup_database():
-    """Create tables before each test and drop them after."""
+def setup_database(db_session_factory):
+    """Create tables before each test and drop them after.
+
+    Also seeds the default payment methods, since several endpoints
+    (e.g. monthly-account payment) depend on them existing.
+    """
     Base.metadata.create_all(bind=engine)
+    session = db_session_factory()
+    try:
+        from app.models.payment_method import PaymentMethod
+        if session.query(PaymentMethod).count() == 0:
+            session.add_all([
+                PaymentMethod(code="pix", name="Pix", is_default=True, is_active=True),
+                PaymentMethod(code="cash", name="Dinheiro", is_active=True),
+                PaymentMethod(code="debit", name="Cartão de Débito", is_active=True),
+                PaymentMethod(code="credit", name="Cartão de Crédito", is_active=True),
+                PaymentMethod(code="transfer", name="Transferência", is_active=True),
+            ])
+            session.commit()
+    finally:
+        session.close()
     yield
     Base.metadata.drop_all(bind=engine)
 
