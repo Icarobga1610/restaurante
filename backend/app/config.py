@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     app_name: str = "Restaurante Conta Mensal"
     app_version: str = "1.0.0"
     debug: bool = False
+    demo_mode: bool = False
     
     # Database
     database_url: str = "sqlite:///./restaurante.db"

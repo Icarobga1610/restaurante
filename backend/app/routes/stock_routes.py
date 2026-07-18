@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from datetime import date
@@ -10,6 +11,7 @@ from app.schemas.schemas import StockItemCreate, StockItemUpdate, StockItemOut, 
 from app.auth.auth import get_current_user
 from app.services.stock_service import StockService
 from app.services.audit_service import AuditService
+from app.utils import entity_code
 
 router = APIRouter(prefix="/api/stock", tags=["Stock"])
 
@@ -22,9 +24,9 @@ def list_stock_items(
     q = db.query(StockItem).options(joinedload(StockItem.supplier))
     if category: q = q.filter(StockItem.category == category)
     if low_stock: q = q.filter(StockItem.current_quantity <= StockItem.minimum_stock, StockItem.minimum_stock > 0)
-    if search: q = q.filter(StockItem.name.ilike(f"%{search}%"))
+    if search: q = q.filter(or_(StockItem.name.ilike(f"%{search}%"), StockItem.code.ilike(f"%{search}%")))
     items = q.order_by(StockItem.name).offset(skip).limit(limit).all()
-    return [StockItemOut(id=i.id, name=i.name, category=i.category, unit_measure=i.unit_measure,
+    return [StockItemOut(id=i.id, code=i.code, name=i.name, category=i.category, unit_measure=i.unit_measure,
         current_quantity=i.current_quantity, minimum_stock=i.minimum_stock, unit_cost=i.unit_cost,
         average_cost=i.average_cost, supplier_id=i.supplier_id,
         supplier_name=i.supplier.name if i.supplier else None,
@@ -35,7 +37,7 @@ def list_stock_items(
 def get_stock_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     i = db.query(StockItem).options(joinedload(StockItem.supplier)).filter(StockItem.id == item_id).first()
     if not i: raise HTTPException(404, "Stock item not found")
-    return StockItemOut(id=i.id, name=i.name, category=i.category, unit_measure=i.unit_measure,
+    return StockItemOut(id=i.id, code=i.code, name=i.name, category=i.category, unit_measure=i.unit_measure,
         current_quantity=i.current_quantity, minimum_stock=i.minimum_stock, unit_cost=i.unit_cost,
         average_cost=i.average_cost, supplier_id=i.supplier_id,
         supplier_name=i.supplier.name if i.supplier else None,
@@ -45,7 +47,12 @@ def get_stock_item(item_id: int, db: Session = Depends(get_db), _: User = Depend
 @router.post("/items", response_model=StockItemOut, status_code=201)
 def create_stock_item(data: StockItemCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role.name not in ("admin", "financial"): raise HTTPException(403, "Only admin/financial can manage stock")
-    item = StockItem(**data.model_dump()); db.add(item); db.commit(); db.refresh(item); return item
+    item = StockItem(**data.model_dump()); db.add(item); db.commit(); db.refresh(item)
+    if not item.code:
+        item.code = entity_code("ING", item.id)
+        db.commit()
+        db.refresh(item)
+    return item
 
 @router.put("/items/{item_id}", response_model=StockItemOut)
 def update_stock_item(item_id: int, data: StockItemUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

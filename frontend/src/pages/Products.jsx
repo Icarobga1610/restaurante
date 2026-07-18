@@ -103,6 +103,7 @@ export default function Products() {
                 </span>
               </div>
               <h3 className="font-semibold text-gray-800 mb-2">{product.name}</h3>
+              <p className="text-xs font-mono text-primary-700 mb-3">{product.code || 'Código pendente'}</p>
               <div className="space-y-1 text-sm">
                 <p className="flex items-center gap-1 text-gray-600">
                   <DollarSign size={14} />

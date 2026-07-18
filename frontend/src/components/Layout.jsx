@@ -4,23 +4,26 @@ import { useAuth } from '../hooks/useAuth';
 import {
   LayoutDashboard, Users, ShoppingBag, ClipboardList, FileText,
   Fingerprint, Truck, BarChart3, History, LogOut, Menu, X, Package, Calculator,
-  UtensilsCrossed, Bell
+  UtensilsCrossed, Bell, Building2, TrendingUp
 } from 'lucide-react';
 
 const navItems = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { label: 'Clientes', icon: Users, path: '/clients' },
-  { label: 'Produtos', icon: ShoppingBag, path: '/products' },
-  { label: 'Ingredientes', icon: Package, path: '/ingredients' },
-  { label: 'Fichas Técnicas', icon: ClipboardList, path: '/recipes' },
-  { label: 'Pedidos', icon: ClipboardList, path: '/orders' },
-  { label: 'Contas Mensais', icon: FileText, path: '/monthly-accounts' },
-  { label: 'Entrega', icon: Truck, path: '/delivery' },
-  { label: 'Biometria', icon: Fingerprint, path: '/biometric' },
-  { label: 'Livro Caixa', icon: Calculator, path: '/cash-book' },
-  { label: 'Pagamentos', icon: Calculator, path: '/payment-methods' },
-  { label: 'Relatórios', icon: BarChart3, path: '/reports' },
-  { label: 'Auditoria', icon: History, path: '/audit' },
+  { section: 'Visão geral', label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+  { section: 'Operação', label: 'Central de Operação', icon: UtensilsCrossed, path: '/operations' },
+  { section: 'Operação', label: 'Pedidos', icon: ClipboardList, path: '/orders' },
+  { section: 'Operação', label: 'Entrega', icon: Truck, path: '/delivery' },
+  { section: 'Cadastros', label: 'Clientes', icon: Users, path: '/clients' },
+  { section: 'Cadastros', label: 'Empresas', icon: Building2, path: '/companies' },
+  { section: 'Cadastros', label: 'Produtos', icon: ShoppingBag, path: '/products' },
+  { section: 'Cadastros', label: 'Ingredientes', icon: Package, path: '/ingredients' },
+  { section: 'Cadastros', label: 'Fichas Técnicas', icon: ClipboardList, path: '/recipes' },
+  { section: 'Financeiro', label: 'Contas Mensais', icon: FileText, path: '/monthly-accounts' },
+  { section: 'Financeiro', label: 'Livro Caixa', icon: Calculator, path: '/cash-book' },
+  { section: 'Financeiro', label: 'Pagamentos', icon: Calculator, path: '/payment-methods' },
+  { section: 'Gestão', label: 'Margem e Alertas', icon: TrendingUp, path: '/management' },
+  { section: 'Gestão', label: 'Biometria', icon: Fingerprint, path: '/biometric' },
+  { section: 'Gestão', label: 'Relatórios', icon: BarChart3, path: '/reports' },
+  { section: 'Gestão', label: 'Auditoria', icon: History, path: '/audit' },
 ];
 
 export default function Layout() {
@@ -61,13 +64,17 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const isActive = location.pathname === item.path ||
               (item.path !== '/' && location.pathname.startsWith(item.path));
             const Icon = item.icon;
             return (
-              <Link
-                key={item.path}
+              <React.Fragment key={item.path}>
+                {(index === 0 || navItems[index - 1].section !== item.section) && (
+                  <p className="px-4 pt-4 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">{item.section}</p>
+                )}
+                <Link
+                  key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
@@ -78,7 +85,8 @@ export default function Layout() {
               >
                 <Icon size={18} className={isActive ? 'text-primary-600' : 'text-gray-400'} />
                 {item.label}
-              </Link>
+                </Link>
+              </React.Fragment>
             );
           })}
         </nav>

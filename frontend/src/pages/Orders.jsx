@@ -10,6 +10,8 @@ const STATUS_MAP = {
   cancelled: { label: 'Cancelado', class: 'badge-red' },
   invoiced: { label: 'Faturado', class: 'badge-purple' },
   paid: { label: 'Pago', class: 'badge-green' },
+  in_preparation: { label: 'Em preparo', class: 'badge-yellow' },
+  ready: { label: 'Pronto', class: 'badge-green' },
 };
 
 export default function Orders() {
@@ -95,7 +97,7 @@ export default function Orders() {
             <div key={order.id} className="card animate-slide-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4 flex-wrap">
-                  <span className="text-sm font-bold text-gray-400">#{order.id}</span>
+                  <span className="text-sm font-mono font-bold text-primary-700">{order.code || `PED-${String(order.id).padStart(6, '0')}`}</span>
                   <span className="font-medium text-gray-800">{order.client_name}</span>
                   <span className={STATUS_MAP[order.status]?.class || 'badge-gray'}>
                     {STATUS_MAP[order.status]?.label || order.status}
@@ -125,7 +127,7 @@ export default function Orders() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-gray-500">
-                        <th className="text-left pb-2 font-medium">Produto</th>
+                        <th className="text-left pb-2 font-medium">Código / produto</th>
                         <th className="text-center pb-2 font-medium">Qtd</th>
                         <th className="text-right pb-2 font-medium">Unit.</th>
                         <th className="text-right pb-2 font-medium">Total</th>
@@ -134,7 +136,7 @@ export default function Orders() {
                     <tbody>
                       {order.items?.map((item) => (
                         <tr key={item.id} className="border-t border-gray-50">
-                          <td className="py-2 text-gray-700">{item.product_name}</td>
+                          <td className="py-2 text-gray-700"><span className="font-mono text-xs text-primary-700">{item.product_code || `PRD-${String(item.product_id).padStart(6, '0')}`}</span><span className="ml-2">{item.product_name}</span></td>
                           <td className="py-2 text-center">{item.quantity}</td>
                           <td className="py-2 text-right">R$ {item.unit_price.toFixed(2)}</td>
                           <td className="py-2 text-right font-medium">R$ {item.total.toFixed(2)}</td>

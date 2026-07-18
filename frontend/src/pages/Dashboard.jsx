@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { dashboard as dashboardApi, insights as insightsApi } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { toast } from 'react-toastify';
@@ -184,6 +185,26 @@ export default function Dashboard() {
             </div>
           );
         })}
+      </div>
+
+      <div className="card border-primary-100 bg-gradient-to-r from-primary-50/70 to-white">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-primary-600">Próximas ações</p>
+            <h3 className="mt-1 text-lg font-semibold text-gray-800">O que precisa da sua atenção hoje?</h3>
+            <p className="mt-1 text-sm text-gray-500">Acesse a operação, o financeiro ou o faturamento corporativo sem procurar no menu.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/operations" className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white hover:bg-gray-700">Central de operação</Link>
+            <Link to="/monthly-accounts" className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Contas mensais</Link>
+            <Link to="/companies" className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">Empresas</Link>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 border-t border-primary-100 pt-4 sm:grid-cols-3">
+          <div><p className="text-xs text-gray-500">Contas vencidas</p><p className={`mt-1 text-xl font-bold ${data?.overdue_accounts > 0 ? 'text-red-600' : 'text-gray-800'}`}>{data?.overdue_accounts || 0}</p></div>
+          <div><p className="text-xs text-gray-500">Contas sem biometria</p><p className={`mt-1 text-xl font-bold ${data?.unsigned_accounts > 0 ? 'text-orange-600' : 'text-gray-800'}`}>{data?.unsigned_accounts || 0}</p></div>
+          <div><p className="text-xs text-gray-500">Produtos ativos</p><p className="mt-1 text-xl font-bold text-gray-800">{data?.total_products || 0}</p></div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

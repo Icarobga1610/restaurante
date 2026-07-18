@@ -264,6 +264,16 @@ python -m pytest app/tests/ -v
 
 - **Limite de crédito (conta mensal)**: pedidos de clientes `is_account_client` consomem o limite mensal; o fechamento sinaliza estouro de limite (`over_limit`)
 
+## Faturamento Corporativo
+
+- Empresas podem ser cadastradas com CNPJ, limite mensal e dia de pagamento.
+- Clientes/pessoas podem ser vinculados a uma empresa tanto no cadastro individual quanto na tela **Empresas**.
+- O fluxo individual continua disponível: cada pessoa pode pagar sua própria conta mensal.
+- Quando a empresa é pagadora, a conta corporativa consolida as contas mensais de todas as pessoas vinculadas no período.
+- O fechamento marca os pedidos como faturados, registra os itens por pessoa e calcula o total da empresa.
+- O pagamento corporativo é registrado separadamente em `company_payments`, sem misturar com pagamentos individuais.
+- Endpoints principais: `/api/companies`, `/api/companies/{id}/members` e `/api/company-monthly-accounts`.
+
 ## Licença
 
 Projeto de código aberto para fins educacionais e comerciais.

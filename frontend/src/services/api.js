@@ -89,6 +89,25 @@ export const clients = {
   delete: (id) => api.delete(`/clients/${id}`),
 };
 
+// === Companies / corporate billing ===
+export const companies = {
+  list: (params) => api.get('/companies', { params }),
+  get: (id) => api.get(`/companies/${id}`),
+  create: (data) => api.post('/companies', data),
+  update: (id, data) => api.put(`/companies/${id}`, data),
+  members: (id) => api.get(`/companies/${id}/members`),
+  linkMember: (companyId, clientId) => api.post(`/companies/${companyId}/members/${clientId}`),
+  unlinkMember: (companyId, clientId) => api.delete(`/companies/${companyId}/members/${clientId}`),
+};
+
+export const companyAccounts = {
+  list: (params) => api.get('/company-monthly-accounts', { params }),
+  get: (id) => api.get(`/company-monthly-accounts/${id}`),
+  create: (data) => api.post('/company-monthly-accounts', data),
+  close: (id) => api.post(`/company-monthly-accounts/${id}/close`),
+  pay: (id, data) => api.post(`/company-monthly-accounts/${id}/pay`, data),
+};
+
 // === Products ===
 export const products = {
   list: (params) => api.get('/products', { params }),
@@ -185,6 +204,12 @@ export const recipes = {
   create: (data) => api.post('/recipes', data),
   update: (id, data) => api.put(`/recipes/${id}`, data),
   recalculate: (id) => api.post(`/recipes/${id}/recalculate`),
+};
+
+// === Promotions ===
+export const promotions = {
+  list: (params) => api.get('/promotions/promotions', { params }),
+  coupons: (params) => api.get('/promotions/coupons', { params }),
 };
 
 // === Finance ===

@@ -1,5 +1,6 @@
 from .base import Base
 from .user import User, Role
+from .company import Company
 from .client import Client
 from .product import Product
 from .order import Order, OrderItem
@@ -28,3 +29,4 @@ from .promotion import Promotion, Coupon, ComboItem, DiscountLog
 from .loss_record import LossRecord
 from .internal_consumption import InternalConsumption
 from .permission import Permission, RolePermission
+from .company_monthly_account import CompanyMonthlyAccount, CompanyMonthlyAccountItem, CompanyPayment

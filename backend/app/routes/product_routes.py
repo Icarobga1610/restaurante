@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -8,6 +9,7 @@ from app.models.product import Product
 from app.schemas.schemas import ProductCreate, ProductUpdate, ProductOut
 from app.auth.auth import get_current_user
 from app.services.audit_service import AuditService
+from app.utils import entity_code
 
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
@@ -28,7 +30,7 @@ def list_products(
     if category:
         query = query.filter(Product.category == category)
     if search:
-        query = query.filter(Product.name.ilike(f"%{search}%"))
+        query = query.filter(or_(Product.name.ilike(f"%{search}%"), Product.code.ilike(f"%{search}%")))
     return query.order_by(Product.name).offset(skip).limit(limit).all()
 
 
@@ -54,6 +56,10 @@ def create_product(
     db.add(product)
     db.commit()
     db.refresh(product)
+    if not product.code:
+        product.code = entity_code("PRD", product.id)
+        db.commit()
+        db.refresh(product)
 
     AuditService(db).log(
         action="create",

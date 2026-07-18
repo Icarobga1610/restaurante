@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 
 from app.database import get_db
 from app.models.user import User
 from app.models.client import Client
+from app.models.company import Company
 from app.schemas.schemas import ClientCreate, ClientUpdate, ClientOut
 from app.auth.auth import get_current_user
 from app.services.audit_service import AuditService
@@ -17,28 +18,39 @@ def _validate_payment_day(payment_day: int | None) -> None:
         raise HTTPException(status_code=400, detail="Payment day must be between 1 and 31")
 
 
+def _require_active_company(company_id: int | None, db: Session) -> None:
+    if company_id is None:
+        return
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if company is None or company.status != "active":
+        raise HTTPException(status_code=400, detail="Active company not found")
+
+
 @router.get("", response_model=list[ClientOut])
 def list_clients(
     status: Optional[str] = None,
     search: Optional[str] = None,
+    company_id: Optional[int] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    query = db.query(Client)
+    query = db.query(Client).options(joinedload(Client.company))
     if status:
         query = query.filter(Client.status == status)
     if search:
         query = query.filter(
             Client.name.ilike(f"%{search}%") | Client.phone.ilike(f"%{search}%")
         )
+    if company_id:
+        query = query.filter(Client.company_id == company_id)
     return query.order_by(Client.name).offset(skip).limit(limit).all()
 
 
 @router.get("/{client_id}", response_model=ClientOut)
 def get_client(client_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    client = db.query(Client).filter(Client.id == client_id).first()
+    client = db.query(Client).options(joinedload(Client.company)).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
@@ -54,6 +66,7 @@ def create_client(
     if current_user.role.name not in ("admin",):
         raise HTTPException(status_code=403, detail="Only admins can create clients")
     _validate_payment_day(data.payment_day)
+    _require_active_company(data.company_id, db)
 
     if data.document:
         existing = db.query(Client).filter(Client.document == data.document).first()
@@ -75,7 +88,7 @@ def create_client(
         details=f"Created client {client.name}",
     )
 
-    return client
+    return db.query(Client).options(joinedload(Client.company)).filter(Client.id == client.id).first()
 
 
 @router.put("/{client_id}", response_model=ClientOut)
@@ -89,13 +102,19 @@ def update_client(
     if current_user.role.name not in ("admin",):
         raise HTTPException(status_code=403, detail="Only admins can update clients")
 
-    client = db.query(Client).filter(Client.id == client_id).first()
+    client = db.query(Client).options(joinedload(Client.company)).filter(Client.id == client_id).first()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     if data.payment_day is not None:
         _validate_payment_day(data.payment_day)
+    _require_active_company(data.company_id, db)
 
-    before = {"name": client.name, "status": client.status, "phone": client.phone}
+    if data.document and data.document != client.document:
+        existing = db.query(Client).filter(Client.document == data.document, Client.id != client_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Document already exists")
+
+    before = {"name": client.name, "status": client.status, "phone": client.phone, "company_id": client.company_id}
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(client, key, value)
 
@@ -109,12 +128,12 @@ def update_client(
         user_id=current_user.id,
         username=current_user.username,
         before_state=before,
-        after_state={"name": client.name, "status": client.status, "phone": client.phone},
+        after_state={"name": client.name, "status": client.status, "phone": client.phone, "company_id": client.company_id},
         ip_address=request.client.host if request.client else None,
         details=f"Updated client {client.name}",
     )
 
-    return client
+    return db.query(Client).options(joinedload(Client.company)).filter(Client.id == client.id).first()
 
 
 @router.delete("/{client_id}")

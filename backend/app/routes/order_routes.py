@@ -26,6 +26,7 @@ from app.routes.biometric_routes import consume_verified_token
 from app.services.audit_service import AuditService
 from app.services.biometric_service import BiometricService
 from app.services.stock_service import StockService
+from app.utils import entity_code
 
 router = APIRouter(prefix="/api/orders", tags=["Orders"])
 
@@ -59,6 +60,7 @@ def list_orders(
     for o in orders:
         result.append(OrderOut(
             id=o.id,
+            code=o.code,
             client_id=o.client_id,
             client_name=o.client.name if o.client else None,
             user_id=o.user_id,
@@ -83,6 +85,7 @@ def get_order(order_id: int, db: Session = Depends(get_db), _: User = Depends(ge
 
     return OrderOut(
         id=order.id,
+        code=order.code,
         client_id=order.client_id,
         client_name=order.client.name if order.client else None,
         user_id=order.user_id,
@@ -158,6 +161,7 @@ def create_order(
     )
     db.add(order)
     db.flush()
+    order.code = entity_code("PED", order.id)
 
     for item_data in data.items:
         product = db.query(Product).filter(Product.id == item_data.product_id).first()
@@ -223,6 +227,7 @@ def create_order(
 
     return OrderOut(
         id=order.id,
+        code=order.code,
         client_id=order.client_id,
         client_name=order.client.name if order.client else None,
         user_id=order.user_id,
@@ -277,6 +282,7 @@ def update_order(
 
     return OrderOut(
         id=order.id,
+        code=order.code,
         client_id=order.client_id,
         client_name=order.client.name if order.client else None,
         user_id=order.user_id,

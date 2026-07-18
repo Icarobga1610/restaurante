@@ -46,6 +46,9 @@ from app.routes.finance_routes import router as finance_router
 from app.routes.payment_method_routes import router as payment_method_router
 from app.routes.kitchen_routes import router as kitchen_router
 from app.routes.delivery_routes import router as delivery_router
+from app.routes.company_routes import router as company_router
+from app.routes.company_monthly_account_routes import router as company_monthly_account_router
+from app.routes.promotion_routes import router as promotion_router
 
 
 class ORJSONResponse(JSONResponse):
@@ -288,6 +291,9 @@ app.include_router(finance_router)
 app.include_router(payment_method_router)
 app.include_router(kitchen_router)
 app.include_router(delivery_router)
+app.include_router(company_router)
+app.include_router(company_monthly_account_router)
+app.include_router(promotion_router)
 
 
 @app.get("/api/health")

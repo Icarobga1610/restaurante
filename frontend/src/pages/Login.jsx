@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { UtensilsCrossed, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function Login() {
+  const demoMode = import.meta.env.VITE_DEMO_MODE === 'true';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,7 +16,7 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!username || !password) {
+    if (!demoMode && (!username || !password)) {
       setError('Preencha usuário e senha');
       return;
     }
@@ -24,7 +25,7 @@ export default function Login() {
     setError('');
 
     try {
-      await login(username, password);
+      await login(demoMode ? 'admin' : username, demoMode ? '' : password);
       toast.success('Login realizado com sucesso!');
       navigate('/');
     } catch (err) {
@@ -49,7 +50,9 @@ export default function Login() {
 
         {/* Login card */}
         <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-6">Entrar</h2>
+          <h2 className="text-xl font-semibold text-gray-800 mb-6">
+            {demoMode ? 'Modo demonstração' : 'Entrar'}
+          </h2>
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-sm text-red-700">
@@ -59,37 +62,45 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
-              <input
-                type="text"
-                className="input-field"
-                placeholder="Digite seu usuário"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className="input-field pr-10"
-                  placeholder="Digite sua senha"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
+            {demoMode ? (
+              <div className="rounded-lg bg-primary-50 border border-primary-100 p-4 text-sm text-primary-800">
+                Acesso automático como administrador. Nenhuma senha é necessária neste ambiente de demonstração.
               </div>
-            </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Usuário</label>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Digite seu usuário"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="input-field pr-10"
+                      placeholder="Digite sua senha"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
 
             <button
               type="submit"
@@ -101,7 +112,7 @@ export default function Login() {
               ) : (
                 <>
                   <LogIn size={18} />
-                  Entrar
+                  {demoMode ? 'Entrar na demonstração' : 'Entrar'}
                 </>
               )}
             </button>

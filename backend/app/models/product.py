@@ -7,6 +7,7 @@ class Product(Base):
     __tablename__ = "products"
 
     id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(20), nullable=True, unique=True, index=True)
     name = Column(String(150), nullable=False, index=True)
     category = Column(String(80), nullable=False)
     # pratos, bebidas, sobremesas, lanches, combos, adicionais, promocoes

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { clients as clientsApi } from '../services/api';
+import { clients as clientsApi, companies as companiesApi } from '../services/api';
 import { toast } from 'react-toastify';
 import { Save, ArrowLeft, Fingerprint } from 'lucide-react';
 import BiometricEnrollModal from '../components/BiometricEnrollModal';
@@ -14,6 +14,7 @@ export default function ClientForm() {
   const [savedClient, setSavedClient] = useState(null);
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [enrollAfterSave, setEnrollAfterSave] = useState(false);
+  const [companies, setCompanies] = useState([]);
   const [form, setForm] = useState({
     name: '',
     document: '',
@@ -24,9 +25,11 @@ export default function ClientForm() {
     payment_day: '',
     notes: '',
     status: 'active',
+    company_id: '',
   });
 
   useEffect(() => {
+    companiesApi.list({ status: 'active' }).then((res) => setCompanies(res.data)).catch(() => {});
     if (isEdit) {
       clientsApi.get(id).then((res) => {
         const c = res.data;
@@ -40,6 +43,7 @@ export default function ClientForm() {
           payment_day: c.payment_day ? String(c.payment_day) : '',
           notes: c.notes || '',
           status: c.status || 'active',
+          company_id: c.company_id ? String(c.company_id) : '',
         });
         setSavedClient(c);
       }).catch(() => {
@@ -64,6 +68,7 @@ export default function ClientForm() {
       const { status, ...rest } = form;
       const payload = {
         ...rest,
+        company_id: form.company_id ? parseInt(form.company_id, 10) : null,
         monthly_limit: form.monthly_limit ? parseFloat(form.monthly_limit) : null,
         payment_day: form.payment_day ? parseInt(form.payment_day, 10) : null,
       };
@@ -138,6 +143,15 @@ export default function ClientForm() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Empresa/Setor</label>
             <input className="input-field" value={form.company_sector} onChange={handleChange('company_sector')} placeholder="Ex: Alimentação" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Empresa pagadora</label>
+            <select className="input-field" value={form.company_id} onChange={handleChange('company_id')}>
+              <option value="">Pagamento individual</option>
+              {companies.map((company) => <option key={company.id} value={company.id}>{company.trade_name || company.legal_name}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">A conta desta pessoa poderá ser consolidada no faturamento da empresa.</p>
           </div>
 
           <div>

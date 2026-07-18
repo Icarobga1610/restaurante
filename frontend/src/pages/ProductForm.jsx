@@ -13,6 +13,7 @@ export default function ProductForm() {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(isEdit);
   const [form, setForm] = useState({
+    code: '',
     name: '',
     category: 'Lanches',
     price: '',
@@ -27,6 +28,7 @@ export default function ProductForm() {
       productsApi.get(id).then((res) => {
         const p = res.data;
         setForm({
+          code: p.code || '',
           name: p.name || '',
           category: p.category || 'Outros',
           price: String(p.price || ''),
@@ -96,6 +98,7 @@ export default function ProductForm() {
 
       <form onSubmit={handleSubmit} className="card space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {isEdit && <div><label className="block text-sm font-medium text-gray-700 mb-1">Código</label><input className="input-field font-mono bg-gray-50" value={form.code} readOnly /></div>}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
             <input className="input-field" value={form.name} onChange={(e) => setForm({...form, name: e.target.value})} required />

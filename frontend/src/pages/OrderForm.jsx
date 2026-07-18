@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { orders as ordersApi, clients as clientsApi, products as productsApi, biometrics } from '../services/api';
 import { toast } from 'react-toastify';
-import { Save, ArrowLeft, Plus, Trash2, User, Fingerprint } from 'lucide-react';
+import { Save, ArrowLeft, Plus, Trash2, User, Fingerprint, Search } from 'lucide-react';
 import { browserSupportsWebAuthn, getWebAuthnCredential } from '../app/webauthn';
 
 export default function OrderForm() {
@@ -10,6 +10,7 @@ export default function OrderForm() {
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [clientSearch, setClientSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([]);
@@ -28,6 +29,15 @@ export default function OrderForm() {
 
   const addItem = () => {
     setItems([...items, { product_id: '', product_name: '', quantity: 1, unit_price: 0, total: 0 }]);
+  };
+
+  const addProductToOrder = (product) => {
+    const existingIndex = items.findIndex((item) => item.product_id === product.id);
+    if (existingIndex >= 0) {
+      updateItem(existingIndex, 'quantity', Number(items[existingIndex].quantity || 0) + 1);
+      return;
+    }
+    setItems([...items, { product_id: product.id, product_name: product.name, quantity: 1, unit_price: product.price, total: product.price }]);
   };
 
   const removeItem = (idx) => setItems(items.filter((_, i) => i !== idx));
@@ -145,6 +155,12 @@ export default function OrderForm() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-700">Itens do Pedido</h2>
             <button type="button" onClick={addItem} className="btn-secondary flex items-center gap-1 text-sm py-1.5 px-3"><Plus size={14}/>Adicionar</button>
+          </div>
+          <div className="mb-4 rounded-xl border border-primary-100 bg-primary-50/50 p-3">
+            <div className="relative mb-3"><Search size={16} className="absolute left-3 top-2.5 text-gray-400" /><input value={productSearch} onChange={(e) => setProductSearch(e.target.value)} placeholder="Buscar no cardápio e adicionar rapidamente..." className="input-field pl-9" /></div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {products.filter((product) => product.name.toLowerCase().includes(productSearch.toLowerCase())).slice(0, 8).map((product) => <button type="button" key={product.id} onClick={() => addProductToOrder(product)} className="rounded-lg border border-white bg-white p-2 text-left shadow-sm transition hover:border-primary-300 hover:shadow"><p className="truncate text-xs font-semibold text-gray-700">{product.name}</p><p className="mt-1 text-xs text-primary-700">R$ {Number(product.price).toFixed(2)}</p></button>)}
+            </div>
           </div>
           {items.length === 0 ? (
             <div className="text-center py-8 text-gray-400">

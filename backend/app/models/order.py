@@ -8,6 +8,7 @@ class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(20), nullable=True, unique=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=True)
@@ -54,3 +55,7 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product")
+
+    @property
+    def product_code(self):
+        return self.product.code if self.product else None

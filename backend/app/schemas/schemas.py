@@ -58,6 +58,7 @@ class ClientCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
+    company_id: Optional[int] = None
     document: Optional[str] = None
     phone: str
     company_sector: Optional[str] = None
@@ -86,7 +87,10 @@ class ClientCreate(BaseModel):
 
 
 class ClientUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: Optional[str] = None
+    company_id: Optional[int] = None
     document: Optional[str] = None
     phone: Optional[str] = None
     company_sector: Optional[str] = None
@@ -102,6 +106,8 @@ class ClientOut(BaseModel):
     
     id: int
     name: str
+    company_id: Optional[int] = None
+    company_name: Optional[str] = None
     document: Optional[str] = None
     phone: str
     company_sector: Optional[str] = None
@@ -114,10 +120,68 @@ class ClientOut(BaseModel):
     updated_at: datetime
 
 
+# === Companies / corporate billing ===
+class CompanyCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    legal_name: str
+    trade_name: Optional[str] = None
+    document: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    monthly_limit: Optional[float] = None
+    payment_day: Optional[int] = None
+    notes: Optional[str] = None
+
+    @field_validator("document")
+    @classmethod
+    def validate_document(cls, value: str) -> str:
+        clean = re.sub(r"[^0-9]", "", value)
+        if len(clean) != 14:
+            raise ValueError("Company document must be a CNPJ with 14 digits")
+        return value
+
+
+class CompanyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    legal_name: Optional[str] = None
+    trade_name: Optional[str] = None
+    document: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    monthly_limit: Optional[float] = None
+    payment_day: Optional[int] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CompanyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    legal_name: str
+    trade_name: Optional[str] = None
+    document: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    monthly_limit: Optional[float] = None
+    payment_day: Optional[int] = None
+    status: str
+    notes: Optional[str] = None
+    member_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
 # === Product / Cardápio ===
 class ProductCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    code: Optional[str] = None
     name: str
     category: str
     price: float
@@ -134,6 +198,7 @@ class ProductCreate(BaseModel):
 
 
 class ProductUpdate(BaseModel):
+    code: Optional[str] = None
     name: Optional[str] = None
     category: Optional[str] = None
     price: Optional[float] = None
@@ -153,6 +218,7 @@ class ProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
+    code: Optional[str] = None
     name: str
     category: str
     price: float
@@ -205,6 +271,7 @@ class OrderItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
+    product_code: Optional[str] = None
     product_id: int
     product_name: str
     quantity: float
@@ -217,6 +284,7 @@ class OrderOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
+    code: Optional[str] = None
     client_id: int
     client_name: Optional[str] = None
     user_id: int
@@ -283,6 +351,56 @@ class MonthlyAccountOut(BaseModel):
     notes: Optional[str] = None
     over_limit: Optional[bool] = False
     items: List[MonthlyAccountItemOut] = []
+    created_at: datetime
+    updated_at: datetime
+
+
+# === Company Monthly Account ===
+class CompanyMonthlyAccountCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    company_id: int
+    month: int
+    year: int
+
+
+class CompanyMonthlyAccountPay(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    payment_method: str = "pix"
+    notes: Optional[str] = None
+
+
+class CompanyMonthlyAccountItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    monthly_account_id: int
+    client_id: int
+    client_name: Optional[str] = None
+    client_total: float
+    created_at: datetime
+
+
+class CompanyMonthlyAccountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    company_id: int
+    company_name: Optional[str] = None
+    month: int
+    year: int
+    total: float
+    due_date: Optional[date] = None
+    status: str
+    closed_at: Optional[datetime] = None
+    closed_by_name: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    paid_by_name: Optional[str] = None
+    payment_method: Optional[str] = None
+    over_limit: bool = False
+    notes: Optional[str] = None
+    items: List[CompanyMonthlyAccountItemOut] = []
     created_at: datetime
     updated_at: datetime
 
@@ -619,48 +737,77 @@ class PurchaseOut(BaseModel):
 
 # === Stock ===
 class StockItemCreate(BaseModel):
-    product_id: int
-    quantity: float
-    location: Optional[str] = None
+    name: str
+    category: Optional[str] = None
+    unit_measure: str = "unidade"
+    current_quantity: float = 0.0
+    minimum_stock: float = 0.0
+    unit_cost: float = 0.0
+    expiry_date: Optional[date] = None
+    status: str = "active"
+    notes: Optional[str] = None
 
 
 class StockItemUpdate(BaseModel):
-    quantity: Optional[float] = None
-    location: Optional[str] = None
+    code: Optional[str] = None
+    name: Optional[str] = None
+    category: Optional[str] = None
+    unit_measure: Optional[str] = None
+    current_quantity: Optional[float] = None
+    minimum_stock: Optional[float] = None
+    unit_cost: Optional[float] = None
+    expiry_date: Optional[date] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class StockItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
-    product_id: int
-    product_name: Optional[str] = None
-    quantity: float
-    location: Optional[str] = None
+    code: Optional[str] = None
+    name: str
+    category: Optional[str] = None
+    unit_measure: str
+    current_quantity: float
+    minimum_stock: float
+    unit_cost: float
+    average_cost: float
+    supplier_id: Optional[int] = None
+    supplier_name: Optional[str] = None
+    expiry_date: Optional[date] = None
+    status: str
+    notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
 
 class StockMovementCreate(BaseModel):
-    product_id: int
+    stock_item_id: int
     movement_type: str
     quantity: float
-    reason: Optional[str] = None
+    unit_cost: Optional[float] = None
+    reference_id: Optional[int] = None
+    reference_type: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class StockMovementOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
-    product_id: int
-    product_name: Optional[str] = None
+    stock_item_id: int
+    stock_item_name: Optional[str] = None
     movement_type: str
     quantity: float
-    balance_after: float
-    reason: Optional[str] = None
+    unit_cost: Optional[float] = None
+    total_cost: Optional[float] = None
+    reference_id: Optional[int] = None
+    reference_type: Optional[str] = None
+    notes: Optional[str] = None
     performed_by: int
     performed_by_name: Optional[str] = None
-    performed_at: datetime
+    created_at: datetime
 
 
 # === Delivery ===
@@ -984,37 +1131,95 @@ class AuditLogOut(BaseModel):
 class PromotionCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    promotion_type: str = "geral"
     discount_type: str
     discount_value: float
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    is_active: bool = True
-    product_ids: Optional[List[int]] = None
-    category_ids: Optional[List[int]] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    day_of_week: Optional[int] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    active: bool = True
 
 
 class PromotionUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    promotion_type: Optional[str] = None
     discount_type: Optional[str] = None
     discount_value: Optional[float] = None
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    is_active: Optional[bool] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    day_of_week: Optional[int] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    active: Optional[bool] = None
 
 
-class PromotionOut(BaseModel):
+class PromotionOut(PromotionCreate):
     model_config = ConfigDict(from_attributes=True)
-    
     id: int
-    name: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class CouponCreate(BaseModel):
+    code: str
     description: Optional[str] = None
     discount_type: str
     discount_value: float
-    start_date: Optional[date] = None
-    end_date: Optional[date] = None
-    is_active: bool
-    product_ids: Optional[List[int]] = None
-    category_ids: Optional[List[int]] = None
+    max_uses: int = 0
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    active: bool = True
+
+
+class CouponOut(CouponCreate):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    current_uses: int
     created_at: datetime
     updated_at: datetime
+
+
+class CouponValidateRequest(BaseModel):
+    code: str
+
+
+class DiscountApplyRequest(BaseModel):
+    order_id: int
+    coupon_code: Optional[str] = None
+    discount_value: Optional[float] = None
+    reason: Optional[str] = None
+
+
+class ComboItemCreate(BaseModel):
+    product_id: int
+    quantity: float = 1.0
+
+
+class ComboCreate(BaseModel):
+    combo_product_id: int
+    items: List[ComboItemCreate]
+
+
+class ComboItemOut(BaseModel):
+    id: int
+    combo_product_id: int
+    product_id: int
+    product_name: Optional[str] = None
+    quantity: float
+    created_at: datetime
+
+
+class DiscountLogOut(BaseModel):
+    id: int
+    order_id: Optional[int] = None
+    user_id: Optional[int] = None
+    user_name: Optional[str] = None
+    discount_type: str
+    discount_value: float
+    reason: str
+    coupon_id: Optional[int] = None
+    promotion_id: Optional[int] = None
+    created_at: datetime

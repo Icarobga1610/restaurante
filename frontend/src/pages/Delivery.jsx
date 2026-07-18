@@ -7,6 +7,7 @@ export default function Delivery() {
   const [platforms, setPlatforms] = useState([]);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [deliveryView, setDeliveryView] = useState('kanban');
   const [platformForm, setPlatformForm] = useState({ name: '', slug: '', active: true, api_base_url: '', webhook_secret: '', settings: {} });
   const [orderForm, setOrderForm] = useState({ platform_slug: '', external_order_id: '', client_name: '', client_phone: '', address: '', payment_method: 'money', subtotal: '', delivery_fee: '0', discount: '0', items: [{ product_name: '', quantity: '1', unit_price: '', total: '' }] });
 
@@ -79,9 +80,27 @@ export default function Delivery() {
     catch (e) { toast.error(String(e?.response?.data?.detail || 'Erro ao criar pedido')); }
   };
 
-  const ack = async id => { await delivery.orders.ack(id); toast.success('Pedido confirmado'); loadOrders(); };
-  const cancel = async id => { if (!window.confirm('Cancelar pedido?')) return; await delivery.orders.cancel(id); toast.success('Pedido cancelado'); loadOrders(); };
-  const convert = async id => { await delivery.orders.convert(id); toast.success('Pedido convertido'); loadOrders(); };
+  const ack = async id => {
+    try { await delivery.orders.ack(id); toast.success('Pedido confirmado'); await loadOrders(); }
+    catch (e) { toast.error(String(e?.response?.data?.detail || 'Não foi possível confirmar o pedido')); }
+  };
+  const cancel = async id => {
+    if (!window.confirm('Cancelar pedido?')) return;
+    try { await delivery.orders.cancel(id); toast.success('Pedido cancelado'); await loadOrders(); }
+    catch (e) { toast.error(String(e?.response?.data?.detail || 'Não foi possível cancelar o pedido')); }
+  };
+  const convert = async id => {
+    try { await delivery.orders.convert(id); toast.success('Pedido convertido'); await loadOrders(); }
+    catch (e) { toast.error(String(e?.response?.data?.detail || 'Não foi possível converter o pedido')); }
+  };
+
+  const deliveryColumns = [
+    { key: 'pending', label: 'Aguardando confirmação', color: 'border-amber-200 bg-amber-50' },
+    { key: 'acknowledged', label: 'Confirmados / em preparo', color: 'border-blue-200 bg-blue-50' },
+    { key: 'converted', label: 'Convertidos', color: 'border-emerald-200 bg-emerald-50' },
+    { key: 'cancelled', label: 'Cancelados', color: 'border-red-200 bg-red-50' },
+  ];
+  const statusLabel = { pending: 'Pendente', acknowledged: 'Confirmado', converted: 'Convertido', cancelled: 'Cancelado' };
 
   const apiBase = (api.defaults.baseURL || '/api').replace(/\/$/, '');
 
@@ -161,38 +180,65 @@ export default function Delivery() {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-4 py-3 border-b border-gray-100 font-medium text-gray-700">Pedidos recebidos</div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-100">
-                    <th className="px-4 py-2">ID</th>
-                    <th className="px-4 py-2">Plataforma</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Cliente</th>
-                    <th className="px-4 py-2">Total</th>
-                    <th className="px-4 py-2">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {orders.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-gray-500">Sem pedidos recebidos</td></tr>}
-                  {orders.map(o => (
-                    <tr key={o.id} className="text-gray-700">
-                      <td className="px-4 py-2">#{o.id}</td>
-                      <td className="px-4 py-2 capitalize">{o.platform?.slug || o.platform_slug || '-'}</td>
-                      <td className="px-4 py-2 capitalize">{o.status}</td>
-                      <td className="px-4 py-2">{o.client_name || '-'}</td>
-                      <td className="px-4 py-2">R$ {Number(o.total || 0).toFixed(2)}</td>
-                      <td className="px-4 py-2 space-x-2">
-                        <button onClick={() => ack(o.id)} className="text-xs px-2 py-1 border rounded-md">Confirmar</button>
-                        <button onClick={() => convert(o.id)} className="text-xs px-2 py-1 border rounded-md">Converter</button>
-                        <button onClick={() => cancel(o.id)} className="text-xs px-2 py-1 border rounded-md text-red-700">Cancelar</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+              <div>
+                <div className="font-medium text-gray-700">Central de delivery</div>
+                <div className="text-xs text-gray-500">Acompanhe a entrada, confirmação e conversão dos pedidos.</div>
+              </div>
+              <div className="flex rounded-md border border-gray-200 p-0.5 text-xs">
+                <button onClick={() => setDeliveryView('kanban')} className={`px-3 py-1.5 rounded ${deliveryView === 'kanban' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>Kanban</button>
+                <button onClick={() => setDeliveryView('table')} className={`px-3 py-1.5 rounded ${deliveryView === 'table' ? 'bg-gray-900 text-white' : 'text-gray-600'}`}>Tabela</button>
+              </div>
             </div>
+
+            {deliveryView === 'kanban' ? (
+              <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 overflow-x-auto">
+                {deliveryColumns.map(column => {
+                  const columnOrders = orders.filter(order => order.status === column.key);
+                  return (
+                    <div key={column.key} className={`rounded-lg border ${column.color} min-h-[230px]`}>
+                      <div className="px-3 py-2 border-b border-inherit flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-800">{column.label}</span>
+                        <span className="rounded-full bg-white/80 px-2 py-0.5 text-xs font-semibold text-gray-600">{columnOrders.length}</span>
+                      </div>
+                      <div className="p-2 space-y-2">
+                        {columnOrders.length === 0 && <div className="p-4 text-center text-xs text-gray-500">Nenhum pedido</div>}
+                        {columnOrders.map(order => (
+                          <div key={order.id} className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="font-semibold text-sm text-gray-800">Pedido #{order.id}</div>
+                                <div className="text-xs text-gray-500 capitalize">{order.platform?.slug || order.platform_slug || 'delivery'} · {statusLabel[order.status] || order.status}</div>
+                              </div>
+                              <div className="font-semibold text-sm text-gray-800">R$ {Number(order.total || 0).toFixed(2)}</div>
+                            </div>
+                            <div className="text-xs text-gray-600 truncate">{order.client_name || 'Cliente não informado'}</div>
+                            <div className="text-xs text-gray-500 truncate">{order.address || 'Endereço não informado'}</div>
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {order.status === 'pending' && <button onClick={() => ack(order.id)} className="text-xs px-2 py-1 rounded border border-blue-200 text-blue-700 hover:bg-blue-50">Confirmar</button>}
+                              {order.status !== 'cancelled' && order.status !== 'converted' && <button onClick={() => convert(order.id)} className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50">Converter</button>}
+                              {order.status !== 'cancelled' && order.status !== 'converted' && <button onClick={() => cancel(order.id)} className="text-xs px-2 py-1 rounded border border-red-200 text-red-700 hover:bg-red-50">Cancelar</button>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead><tr className="text-left text-gray-500 border-b border-gray-100"><th className="px-4 py-2">ID</th><th className="px-4 py-2">Plataforma</th><th className="px-4 py-2">Status</th><th className="px-4 py-2">Cliente</th><th className="px-4 py-2">Total</th><th className="px-4 py-2">Ações</th></tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {orders.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-gray-500">Sem pedidos recebidos</td></tr>}
+                    {orders.map(order => (
+                      <tr key={order.id} className="text-gray-700"><td className="px-4 py-2">#{order.id}</td><td className="px-4 py-2 capitalize">{order.platform?.slug || order.platform_slug || '-'}</td><td className="px-4 py-2">{statusLabel[order.status] || order.status}</td><td className="px-4 py-2">{order.client_name || '-'}</td><td className="px-4 py-2">R$ {Number(order.total || 0).toFixed(2)}</td><td className="px-4 py-2 space-x-2"><button onClick={() => ack(order.id)} className="text-xs px-2 py-1 border rounded-md">Confirmar</button><button onClick={() => convert(order.id)} className="text-xs px-2 py-1 border rounded-md">Converter</button><button onClick={() => cancel(order.id)} className="text-xs px-2 py-1 border rounded-md text-red-700">Cancelar</button></td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

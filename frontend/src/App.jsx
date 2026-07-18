@@ -22,6 +22,9 @@ import CashBook from './pages/CashBook';
 import PaymentMethods from './pages/PaymentMethods';
 import Reports from './pages/Reports';
 import AuditLogs from './pages/AuditLogs';
+import Companies from './pages/Companies';
+import Operations from './pages/Operations';
+import Management from './pages/Management';
 import RoleProtectedRoute from './components/RoleProtectedRoute';
 
 function ProtectedRoute({ children }) {
@@ -52,7 +55,17 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="operations" element={<Operations />} />
+        <Route path="management" element={<Management />} />
         <Route path="clients" element={<Clients />} />
+        <Route
+          path="companies"
+          element={
+            <RoleProtectedRoute allowed={['admin', 'financial']}>
+              <Companies />
+            </RoleProtectedRoute>
+          }
+        />
         <Route
           path="clients/new"
           element={

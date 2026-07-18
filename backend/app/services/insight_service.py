@@ -3,7 +3,7 @@ from app.utils import utcnow, date
 from collections import defaultdict
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
-from sqlalchemy import func, extract
+from sqlalchemy import Integer, extract, func
 
 from app.models.order import Order, OrderItem
 from app.models.client import Client
@@ -16,11 +16,22 @@ class InsightService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _date_part_expression(self, column, part: str):
+        """Return a date expression supported by the active SQL dialect."""
+        dialect = self.db.bind.dialect.name if self.db.bind is not None else ""
+        if dialect == "sqlite":
+            formats = {"dow": "%w", "month": "%Y-%m", "hour": "%H"}
+            expression = func.strftime(formats[part], column)
+            # PostgreSQL D is 1..7 (Sunday..Saturday); SQLite %w is 0..6.
+            return (expression.cast(Integer) + 1) if part == "dow" else expression
+        formats = {"dow": "D", "month": "YYYY-MM", "hour": "HH"}
+        return func.to_char(column, formats[part])
+
     def calculate_top_products_by_day(self) -> List[Dict]:
         """Products most sold by day of week."""
         results = (
             self.db.query(
-                func.to_char(Order.created_at, 'D').label("day_of_week"),
+                self._date_part_expression(Order.created_at, "dow").label("day_of_week"),
                 OrderItem.product_id,
                 OrderItem.product_name,
                 func.sum(OrderItem.quantity).label("total_qty"),
@@ -59,7 +70,7 @@ class InsightService:
         """Products most sold by month."""
         results = (
             self.db.query(
-                func.to_char(Order.created_at, 'YYYY-MM').label("month"),
+                self._date_part_expression(Order.created_at, "month").label("month"),
                 OrderItem.product_id,
                 OrderItem.product_name,
                 func.sum(OrderItem.quantity).label("total_qty"),
@@ -89,7 +100,7 @@ class InsightService:
         """Peak hours of movement."""
         results = (
             self.db.query(
-                func.to_char(Order.created_at, 'HH').label("hour"),
+                self._date_part_expression(Order.created_at, "hour").label("hour"),
                 func.count(Order.id).label("order_count"),
                 func.sum(Order.total).label("total_revenue"),
             )
@@ -286,7 +297,7 @@ class InsightService:
                 self.db.query(func.sum(Order.total))
                 .filter(
                     Order.client_id == client.id,
-                    func.to_char(Order.created_at, 'YYYY-MM') == f"{current_year}-{current_month:02d}",
+                    self._date_part_expression(Order.created_at, "month") == f"{current_year}-{current_month:02d}",
                     Order.status.in_(["confirmed", "invoiced"]),
                 )
                 .scalar() or 0
@@ -309,7 +320,7 @@ class InsightService:
             )
             .join(Order, Order.id == OrderItem.order_id)
             .filter(
-                func.to_char(Order.created_at, 'YYYY-MM') == f"{current_year}-{current_month:02d}",
+                self._date_part_expression(Order.created_at, "month") == f"{current_year}-{current_month:02d}",
                 Order.status.in_(["confirmed", "invoiced", "paid"]),
             )
             .group_by(OrderItem.product_id, OrderItem.product_name)
@@ -324,7 +335,7 @@ class InsightService:
                 )
                 .join(Order, Order.id == OrderItem.order_id)
                 .filter(
-                    func.to_char(Order.created_at, 'YYYY-MM') == f"{prev_year}-{prev_month:02d}",
+                    self._date_part_expression(Order.created_at, "month") == f"{prev_year}-{prev_month:02d}",
                     Order.status.in_(["confirmed", "invoiced", "paid"]),
                 )
                 .group_by(OrderItem.product_id)

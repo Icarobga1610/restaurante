@@ -9,6 +9,7 @@ class StockItem(Base):
     __tablename__ = "stock_items"
 
     id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(20), nullable=True, unique=True, index=True)
     name = Column(String(150), nullable=False, index=True)
     category = Column(String(80), nullable=True)  # hortifruti, carnes, bebidas, limpeza, descartaveis, etc
     unit_measure = Column(String(20), nullable=False, default="unidade")  # kg, g, litro, ml, unidade, pacote, caixa

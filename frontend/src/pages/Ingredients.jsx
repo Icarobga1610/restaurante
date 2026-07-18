@@ -126,6 +126,7 @@ export default function Ingredients() {
         <table className="min-w-full divide-y divide-gray-200 bg-white">
           <thead className="bg-gray-50">
             <tr>
+              <th className="table-header">Código</th>
               <th className="table-header">Ingrediente</th>
               <th className="table-header">Categoria</th>
               <th className="table-header">Estoque</th>
@@ -139,6 +140,7 @@ export default function Ingredients() {
               const low = item.minimum_stock > 0 && item.current_quantity <= item.minimum_stock;
               return (
                 <tr key={item.id} className={low ? 'bg-red-50' : 'hover:bg-gray-50'}>
+                  <td className="table-cell font-mono text-xs text-primary-700">{item.code || 'Código pendente'}</td>
                   <td className="table-cell font-medium text-gray-800"><span className="inline-flex items-center gap-2"><Package size={14} />{item.name}</span></td>
                   <td className="table-cell">{item.category || '-'}</td>
                   <td className="table-cell">{item.current_quantity.toFixed(3)} {item.unit_measure}</td>
